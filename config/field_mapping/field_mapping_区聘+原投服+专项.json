@@ -1,0 +1,346 @@
+{
+  "field_mappings": [
+    {
+      "编制": "区聘",
+      "岗位类别": "综合类",
+      "persons": [
+        "区聘 1",
+        "区聘 10",
+        "区聘 11",
+        "区聘 12",
+        "区聘 13",
+        "区聘 14",
+        "区聘 15",
+        "区聘 16",
+        "区聘 17",
+        "区聘 18",
+        "区聘 2",
+        "区聘 3",
+        "区聘 4",
+        "区聘 5",
+        "区聘 6",
+        "区聘 7",
+        "区聘 8",
+        "区聘 9"
+      ],
+      "mappings": [
+        {
+          "source_field": "人员姓名",
+          "target_field": "人员姓名"
+        },
+        {
+          "source_field": "工资级别",
+          "target_field": "工资级别"
+        },
+        {
+          "source_field": "工资档次",
+          "target_field": "工资档次"
+        },
+        {
+          "source_field": "发放合计",
+          "target_field": "发放合计"
+        },
+        {
+          "source_field": "工资小计",
+          "target_field": "工资小计"
+        },
+        {
+          "source_field": "基本工资",
+          "target_field": "基本工资"
+        },
+        {
+          "source_field": "岗位工资",
+          "target_field": "岗位工资"
+        },
+        {
+          "source_field": "绩效工资",
+          "target_field": "绩效工资"
+        },
+        {
+          "source_field": "补助",
+          "target_field": "补助"
+        },
+        {
+          "source_field": "基础绩效奖",
+          "target_field": "绩效奖"
+        },
+        {
+          "source_field": "信访岗位津贴",
+          "target_field": "信访岗位津贴"
+        },
+        {
+          "source_fields": [
+            "个人缴养老保险费8%",
+            "个人缴医疗保险费2%",
+            "个人缴失业保险费0.4%",
+            "个人缴住房公积金12%",
+            "补扣（退）款",
+            "补扣（退）公积金",            
+            "个人所得税"
+          ],
+          "target_field": "单位代扣总计",
+          "calculation": "sum"
+        },
+        {
+          "source_fields": [
+            "发放合计",
+            "单位代扣总计"
+          ],
+          "target_field": "财务实发",
+          "calculation": "发放合计 - 单位代扣总计"
+        }
+      ]
+    },
+    {
+      "编制": "原投服",
+      "岗位类别": "项目经理",
+      "persons": [
+        "原丙",
+        "原甲"
+      ],
+      "mappings": [
+        {
+          "source_field": "人员姓名",
+          "target_field": "人员姓名"
+        },
+        {
+          "source_field": "工资级别",
+          "target_field": "工资级别"
+        },
+        {
+          "source_field": "发放合计",
+          "target_field": "发放合计"
+        },
+        {
+          "source_field": "工资小计",
+          "target_field": "工资小计"
+        },
+        {
+          "source_field": "岗位工资",
+          "target_field": "基本工资"
+        },
+        {
+          "source_field": "薪级工资",
+          "target_field": "岗位工资"
+        },
+        {
+          "source_field": "绩效工资",
+          "target_field": "绩效工资"
+        },
+        {
+          "source_field": "基础绩效奖",
+          "target_field": "绩效奖"
+        },
+        {
+          "source_field": "生活津贴",
+          "target_field": "补助"
+        },
+        {
+          "source_field": "补发薪 级合计",
+          "target_field": "补发合计"
+        },
+        {
+          "source_fields": [
+            "个人缴养老保险费8%",
+            "个人缴医疗保险费2%",
+            "个人缴失业保险费0.4%",
+            "个人缴住房公积金12%",
+            "补扣（退）款",
+            "补扣（退）公积金",
+            "个人所得税"
+          ],
+          "target_field": "单位代扣总计",
+          "calculation": "sum"
+        },
+
+        {
+          "source_field":"补扣（退）款",
+          "target_field":"补扣（退）款"
+        },
+        {
+          "source_field":"补扣（退）公积金",
+          "target_field":"补扣（退）公积金"
+        },
+        {
+          "source_field":"个人所得税",
+          "target_field":"个人所得税"
+        },
+        {
+          "source_field":"发放合计",
+          "target_field":"发放合计"
+        },
+        
+
+        {
+          "source_fields": [
+            "发放合计",
+            "单位代扣总计"
+          ],
+          "target_field": "财务实发",
+          "calculation": "发放合计 - 单位代扣总计"
+        }
+      ]
+    },
+    {
+      "编制": "原投服",
+      "岗位类别": "项目服务专员",      
+      "persons": [
+        "原乙"
+      ],
+      "mappings": [
+        {
+          "source_field": "人员姓名",
+          "target_field": "人员姓名"
+        },
+        {
+          "source_field": "工资级别",
+          "target_field": "工资级别"
+        },
+        {
+          "source_field": "发放合计",
+          "target_field": "发放合计"
+        },
+        {
+          "source_field": "工资小计",
+          "target_field": "工资小计"
+        },
+        {
+          "source_field": "岗位工资",
+          "target_field": "岗位工资"
+        },
+        {
+          "source_field": "绩效工资",
+          "target_field": "绩效工资"
+        },
+        {
+          "source_field": "基础绩效奖",
+          "target_field": "绩效奖"
+        },
+        {
+          "source_field": "生活津贴",
+          "target_field": "补助"
+        },
+        {
+          "source_field": "补发薪 级合计",
+          "target_field": "补发合计"
+        },
+        {
+          "source_fields": [
+            "个人缴养老保险费8%",
+            "个人缴医疗保险费2%",
+            "个人缴失业保险费0.4%",
+            "个人缴住房公积金12%",
+            "补扣（退）款",
+            "补扣（退）公积金",            
+            "个人所得税"
+          ],
+          "target_field": "单位代扣总计",
+          "calculation": "sum"
+        },
+
+        {
+          "source_field":"补扣（退）款",
+          "target_field":"补扣（退）款"
+        },
+        {
+          "source_field":"补扣（退）公积金",
+          "target_field":"补扣（退）公积金"
+        },
+        {
+          "source_field":"个人所得税",
+          "target_field":"个人所得税"
+        },        
+        {
+          "source_fields": [
+            "发放合计",
+            "单位代扣总计"
+          ],
+          "target_field": "财务实发",
+          "calculation": "发放合计 - 单位代扣总计"
+        }
+      ]
+    },
+    {
+      "编制": "专项",
+      "岗位类别": "专项人员",
+      "persons": [
+        "专项A",
+        "专项B",
+        "专项C",
+        "专项D"
+      ],
+      "mappings": [
+        {
+          "source_field": "人员姓名",
+          "target_field": "人员姓名"
+        },
+        {
+          "source_field": "发放合计",
+          "target_field": "发放合计"
+        },
+        {
+          "source_field": "工资小计",
+          "target_field": "工资小计"
+        },
+        {
+          "source_field": "基本工资",
+          "target_field": "基本工资"
+        },
+        {
+          "source_field": "岗位工资",
+          "target_field": "岗位工资"
+        },
+        {
+          "source_field": "绩效工资",
+          "target_field": "绩效工资"
+        },
+        {
+          "source_field": "基础绩效奖",
+          "target_field": "绩效奖"
+        },
+        {
+          "source_field": "其他补助",
+          "target_field": "补助"
+        },
+        {
+          "source_field": "补发工资",
+          "target_field": "补发合计"
+        },
+        {
+          "source_fields": [
+            "个人缴养老保险费8%",
+            "个人缴医疗保险费2%",
+            "个人缴失业保险费0.4%",
+            "个人缴住房公积金12%",
+            "补扣（退）款",
+            "补扣（退）公积金",            
+            "个人所得税"
+          ],
+          "target_field": "单位代扣总计",
+          "calculation": "sum"
+        },
+
+        {
+          "source_field":"补扣（退）款",
+          "target_field":"补扣（退）款"
+        },
+        {
+          "source_field":"补扣（退）公积金",
+          "target_field":"补扣（退）公积金"
+        },
+        {
+          "source_field":"个人所得税",
+          "target_field":"个人所得税"
+        },        
+        {
+          "source_fields": [
+            "发放合计",
+            "单位代扣总计"
+          ],
+          "target_field": "财务实发",
+          "calculation": "发放合计 - 单位代扣总计"
+        }
+      ]
+    }
+  ]
+}
