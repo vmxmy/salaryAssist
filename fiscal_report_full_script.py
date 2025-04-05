@@ -52,40 +52,72 @@ def get_identity_mapping_rules(identity_value: str, field_mappings: list, rule_i
 
 # --- 2. 字段转换 ---
 def apply_field_mapping(df: pd.DataFrame, mapping_rules: dict) -> pd.DataFrame:
-    # print(f"DEBUG: apply_field_mapping called for identity '{mapping_rules.get('人员身份','N/A')}' (or rule key value '{mapping_rules.get(list(mapping_rules.keys())[0],'N/A')}')") # Commented out
-    # print(f"DEBUG: Input df head:\n{df.head().to_string()}") # Commented out
+    # print(f"DEBUG: apply_field_mapping called...") # Reduced verbosity
     result_df = pd.DataFrame()
     mappings = mapping_rules.get("mappings", [])
 
+    # --- 新增：收集所有复杂计算需要的源字段 --- #
+    complex_source_fields = set()
+    for mapping in mappings:
+        if "source_fields" in mapping:
+            complex_source_fields.update(mapping["source_fields"])
+    print(f"DEBUG: apply_field_mapping - Complex source fields needed: {complex_source_fields}")
+    # --- 结束新增 --- #
+
     for mapping in mappings:
         target = mapping.get("target_field")
-        if target is None: continue # Skip if no target field
+        if target is None: continue
 
         if "source_field" in mapping:
             source = mapping["source_field"]
-            # print(f"DEBUG: Mapping simple '{source}' -> '{target}'")
-            result_df[target] = df.get(source, pd.Series([np.nan] * len(df)))
+            if source in df.columns:
+                 result_df[target] = df[source]
+            else:
+                 print(f"Warning: Simple mapping source field '{source}' not found in input df for target '{target}'. Setting target to NaN.")
+                 result_df[target] = np.nan # Set target to NaN if source is missing
         elif "source_fields" in mapping:
-            # Complex mapping logic - calculated later in process_sheet
-            # print(f"DEBUG: Deferring complex mapping for '{target}'")
-            pass # No calculation here, just ensure target exists if needed? Or handle later.
-        # else: print(f"DEBUG: Mapping rule skipped: {mapping}")
+            # Defer calculation, but ensure target column might be created later if needed.
+            # No action needed here now, source fields will be preserved below.
+            pass
 
-    # Add static fields from the rule
+    # Add static fields from the rule (e.g., '编制', '人员身份')
     for key, value in mapping_rules.items():
-        if key not in ["mappings", "persons"]: # Add all top-level rule keys except mappings/persons
-             if key not in result_df.columns: # Avoid overwriting if already mapped
+        if key not in ["mappings", "persons"] + list(complex_source_fields): # Avoid overwriting complex sources if rule has same key
+             if key not in result_df.columns:
                   result_df[key] = value
 
-    # print(f"DEBUG: apply_field_mapping returning columns: {result_df.columns.tolist()}") # Commented out
+    # --- 新增：确保复杂计算需要的原始源字段被保留 --- #
+    print(f"DEBUG: apply_field_mapping - Checking preservation for {len(complex_source_fields)} complex source fields...")
+    preserved_count = 0
+    already_present_count = 0
+    missing_from_input_count = 0
+    for field_name in complex_source_fields:
+        if field_name not in result_df.columns:
+            if field_name in df.columns:
+                result_df[field_name] = df[field_name]
+                preserved_count += 1
+                # print(f"DEBUG: Preserving complex source field '{field_name}' from input df.")
+            else:
+                 # This case should be rare if the source file is consistent, but good to log.
+                 print(f"Warning: Complex source field '{field_name}' needed for later calculation was NOT found in the input df columns: {df.columns.tolist()}")
+                 missing_from_input_count += 1
+        else:
+            already_present_count += 1
+            # print(f"DEBUG: Complex source field '{field_name}' already present in result_df.")
+    print(f"DEBUG: apply_field_mapping - Preservation check complete. Preserved: {preserved_count}, Already Present: {already_present_count}, Missing from Input: {missing_from_input_count}")
+    # --- 结束新增 --- #
+
+    print(f"DEBUG: apply_field_mapping returning columns: {result_df.columns.tolist()}")
     return result_df
 
 # --- 3. 合并扣款项 ---
 def merge_deductions(source_df: pd.DataFrame, deduction_df: pd.DataFrame, deduction_fields: list) -> pd.DataFrame:
     print("DEBUG: merge_deductions called.")
-    # print(f"DEBUG: Input source_df shape: {source_df.shape}") # Keep essential shapes?
-    # print(f"DEBUG: Input deduction_df shape: {deduction_df.shape}")
-    # print(f"DEBUG: Deduction fields to merge: {deduction_fields}")
+    print(f"DEBUG: Source DataFrame columns: {source_df.columns.tolist()}")
+    print(f"DEBUG: Source DataFrame first 5 rows:\n{source_df.head().to_string()}")
+    print(f"DEBUG: Deduction DataFrame columns: {deduction_df.columns.tolist()}")
+    print(f"DEBUG: Deduction DataFrame first 5 rows:\n{deduction_df.head().to_string()}")
+    
     merged_df = source_df.copy()
     # --- 动态确定合并列名 (查找在两个表中都存在的列) --- #
     possible_key_columns = ["姓名", "人员姓名"] # 优先尝试 '姓名'
@@ -95,6 +127,8 @@ def merge_deductions(source_df: pd.DataFrame, deduction_df: pd.DataFrame, deduct
         if col in merged_df.columns and col in deduction_df.columns:
             merge_on_column = col
             print(f"DEBUG: Found common merge key in both dataframes: '{col}'")
+            print(f"DEBUG: Unique values in source '{col}': {merged_df[col].unique().tolist()}")
+            print(f"DEBUG: Unique values in deduction '{col}': {deduction_df[col].unique().tolist()}")
             break # Found the best key
 
     if merge_on_column is None:
@@ -124,23 +158,19 @@ def merge_deductions(source_df: pd.DataFrame, deduction_df: pd.DataFrame, deduct
         suffixes=("", "_扣款表")
     )
     print(f"DEBUG: Shape after merge: {merged_df.shape}")
+    print(f"DEBUG: Merged DataFrame first 5 rows:\n{merged_df.head().to_string()}")
 
     # 使用扣款表中的值填充源表中的 NaN 值
     print("DEBUG: Applying np.where to prioritize deduction values...")
     for field in deduction_fields:
          deduction_col_suffixed = f"{field}_扣款表"
          if deduction_col_suffixed in merged_df.columns:
-             # print(f"DEBUG: Processing field '{field}'...") # Keep this?
-             # ---> Comment out detailed prints <---
+             print(f"DEBUG: Processing field '{field}'...")
              original_col = merged_df[field]
              deduction_col = merged_df[deduction_col_suffixed]
-             # if not merged_df.empty:
-             #     print(f"  Comparing for first 3 rows (or less):")
-             #     comparison_df = pd.DataFrame({
-             #         f"Original '{field}': original_col.head(3),
-             #         f"Deduction '{field}': deduction_col.head(3),
-             #     })
-             #     print(comparison_df.to_string())
+             
+             print(f"DEBUG: Original column '{field}' values (first 5):\n{original_col.head().to_string()}")
+             print(f"DEBUG: Deduction column '{field}' values (first 5):\n{deduction_col.head().to_string()}")
 
              result_col = np.where(
                  deduction_col.notna(),
@@ -148,14 +178,13 @@ def merge_deductions(source_df: pd.DataFrame, deduction_df: pd.DataFrame, deduct
                  original_col
              )
              merged_df[field] = result_col
-
-             # if not merged_df.empty:
-             #      print(f"  Result after np.where for first 3 rows (or less):")
-             #      print(merged_df[field].head(3).to_string())
-             # ---> End Comment out <---
+             
+             print(f"DEBUG: Result column '{field}' values after merge (first 5):\n{merged_df[field].head().to_string()}")
              merged_df.drop(columns=[deduction_col_suffixed], inplace=True)
 
     print(f"DEBUG: merge_deductions returning shape: {merged_df.shape}")
+    print(f"DEBUG: Final DataFrame columns: {merged_df.columns.tolist()}")
+    print(f"DEBUG: Final DataFrame first 5 rows:\n{merged_df.head().to_string()}")
     return merged_df
 
 # --- 4. 起始行检测与合计过滤 ---
@@ -225,26 +254,86 @@ def process_sheet(file_path: str, deduction_df: pd.DataFrame, field_mappings: li
         df_combined = pd.concat(results, ignore_index=True)
         print(f"DEBUG: df_combined shape after concat: {df_combined.shape}")
 
-        # 使用传入的 selected_deduction_fields 合并扣款
-        df_combined = merge_deductions(df_combined, deduction_df, selected_deduction_fields)
-        # print(f"DEBUG: df_combined shape after merge_deductions: {df_combined.shape}") # Covered by merge_deductions exit
+        # --- 合并扣款数据 ---
+        print("DEBUG: Starting deduction merge...")
+        print(f"DEBUG: Selected deduction fields: {selected_deduction_fields}")
+        print(f"DEBUG: Deduction DataFrame columns: {deduction_df.columns.tolist()}")
+        # print(f"DEBUG: Deduction DataFrame first 5 rows:\\n{deduction_df.head().to_string()}") # Reduce log verbosity
+
+        # 动态查找姓名列
+        possible_name_cols = ["人员姓名", "姓名"]
+        source_name_col = next((col for col in possible_name_cols if col in df_combined.columns), None)
+        deduction_name_col = next((col for col in possible_name_cols if col in deduction_df.columns), None)
+
+        if source_name_col and deduction_name_col:
+            print(f"DEBUG: Found name column in source: '{source_name_col}'")
+            print(f"DEBUG: Found name column in deduction: '{deduction_name_col}'")
+
+            # 准备用于合并的扣款数据副本
+            cols_to_merge = [deduction_name_col] + selected_deduction_fields
+            missing_deduction_fields = [f for f in selected_deduction_fields if f not in deduction_df.columns]
+            if missing_deduction_fields:
+                 print(f"WARNING: The following selected deduction fields are missing from the deduction table: {missing_deduction_fields}")
+                 cols_to_merge = [f for f in cols_to_merge if f in deduction_df.columns] # Only use existing columns
+
+            deduction_df_to_merge = deduction_df[cols_to_merge].copy()
+
+            # 如果姓名列名称不一致，重命名扣款表的列以匹配源表
+            merge_key = source_name_col
+            if source_name_col != deduction_name_col:
+                print(f"DEBUG: Renaming deduction key column '{deduction_name_col}' to '{source_name_col}' for merge.")
+                deduction_df_to_merge.rename(columns={deduction_name_col: source_name_col}, inplace=True)
+
+            print(f"DEBUG: Merging on key: '{merge_key}'")
+            # print(f"DEBUG: Source name values (first 5):\\n{df_combined[source_name_col].head().to_string()}")
+            # print(f"DEBUG: Deduction (to merge) name values (first 5):\\n{deduction_df_to_merge[merge_key].head().to_string()}")
+
+            # 执行合并
+            df_combined = pd.merge(
+                df_combined,
+                deduction_df_to_merge,
+                on=merge_key,
+                how="left"
+                # Consider adding suffixes if other column names might collide, e.g., suffixes=('', '_deduction')
+            )
+            print(f"DEBUG: Shape after merge: {df_combined.shape}")
+            # print(f"DEBUG: Merged DataFrame columns: {df_combined.columns.tolist()}") # Reduce log verbosity
+            # print(f"DEBUG: Merged DataFrame first 5 rows:\\n{df_combined.head().to_string()}") # Reduce log verbosity
+
+            # 检查合并后是否有NaN（如果需要）
+            nan_check_cols = [f for f in selected_deduction_fields if f in df_combined.columns] # Check only merged fields
+            if nan_check_cols:
+                 nan_counts = df_combined[nan_check_cols].isnull().sum()
+                 total_nans = nan_counts.sum()
+                 if total_nans > 0:
+                     print(f"DEBUG: NaN values found after merge (field: count): {nan_counts[nan_counts > 0].to_dict()}")
+                 else:
+                     print(f"DEBUG: No NaN values found in merged deduction columns.")
+
+        else:
+            error_msg = "ERROR: Cannot perform merge. "
+            if not source_name_col:
+                error_msg += f"Name column ({'/'.join(possible_name_cols)}) not found in source data (df_combined columns: {df_combined.columns.tolist()}). "
+            if not deduction_name_col:
+                error_msg += f"Name column ({'/'.join(possible_name_cols)}) not found in deduction data (deduction_df columns: {deduction_df.columns.tolist()})."
+            print(error_msg)
+            # Consider adding empty columns for selected_deduction_fields if merge fails?
+            # for field in selected_deduction_fields:
+            #     if field not in df_combined.columns:
+            #         df_combined[field] = np.nan
 
         # --- 应用复杂计算规则 --- #
         print(f"DEBUG: Applying complex calculations based on field mapping...")
-        # 收集所有唯一的复杂映射规则 (以目标字段为 key)
         all_complex_mappings_details = {}
-        # ---> 使用正确的列获取要查找规则的值 <-----
-        # 获取 df_combined 中实际处理过的、用于匹配规则的唯一值
         identity_column_for_lookup = f'_匹配字段 ({source_identity_column})'
         if identity_column_for_lookup in df_combined.columns:
              unique_identity_values = df_combined[identity_column_for_lookup].unique()
              print(f"DEBUG: Found {len(unique_identity_values)} unique identity values for rule lookup from column '{identity_column_for_lookup}'")
         else:
              print(f"ERROR: Cannot find column '{identity_column_for_lookup}' in df_combined to look up rules. Skipping complex calculations.")
-             unique_identity_values = [] # Set to empty to skip loop
+             unique_identity_values = []
 
         for identity_value in unique_identity_values:
-                # 使用 identity_value 和用户选择的 rule_identity_key 查找规则
                 rule = get_identity_mapping_rules(str(identity_value), field_mappings, rule_identity_key)
                 if rule:
                     for mapping in rule.get("mappings", []):
@@ -255,39 +344,106 @@ def process_sheet(file_path: str, deduction_df: pd.DataFrame, field_mappings: li
                                         "sources": mapping["source_fields"],
                                         "calculation": mapping.get("calculation", "sum")
                                     }
-        # ---> 结束修改 <-----
+
+        # --- 添加日志：打印应用复杂计算前的列名 和 '补发工资' 规则细节 ---
+        print(f"DEBUG: Columns available in df_combined *before* applying complex calculations: {df_combined.columns.tolist()}")
+        if '补发工资' in all_complex_mappings_details:
+            print(f"DEBUG: Rule details for '补发工资' from complex mappings: {all_complex_mappings_details['补发工资']}")
+        else:
+            print("DEBUG: No rule details found for '补发工资' in all_complex_mappings_details. It might not be a complex calculation or rule is missing.")
+        # --- 结束添加 ---
 
         # 定义行计算辅助函数
         def calculate_row(row, sources, calculation, target):
             row_info = f"row index {row.name}" if hasattr(row, 'name') else "unknown row"
-            # print(f"DEBUG: calculate_row for '{target}', {row_info}") # Commented out
+            is_bufa_target = (target == '补发工资') # Flag for specific logging
+
+            if is_bufa_target:
+                print(f"--- Entering calculate_row for 补发工资, {row_info} ---")
+                print(f"  Expected sources: {sources}")
+                print(f"  Actual columns in this row: {row.index.tolist()}")
+            else:
+                 print(f"DEBUG: calculate_row for '{target}', {row_info}")
+
             # Check for missing source columns *before* trying to access them
             missing_sources = [s for s in sources if s not in row.index]
             if missing_sources:
-                 # Simplify the f-string to avoid potential parsing issues
-                 print(f"DEBUG: Missing sources for '{target}' in {row_info}: {missing_sources}")
-                 return np.nan
+                print(f"DEBUG: Missing sources for '{target}' in {row_info}: {missing_sources}")
+                if is_bufa_target:
+                    print(f"  [补发工资 specific] Missing sources detected: {missing_sources}")
+                    print("--- Exiting calculate_row for 补发工资 (Missing Sources) ---")
+                return np.nan
+
             try:
-                source_values = row[sources]
-                # print(f"  Source values for '{target}': {source_values.to_dict()}") # Commented out
+                # Get only the source values that actually exist in the row
+                existing_sources = [s for s in sources if s in row.index] # Should be all sources now if no missing_sources
+                source_values = row[existing_sources]
+
+                if is_bufa_target:
+                    print(f"  Original values for existing sources ({existing_sources}):")
+                    print(f"    {source_values.to_dict()}")
+                    print(f"  Original types:")
+                    print(f"    {source_values.apply(type).to_dict()}")
+                else:
+                     print(f"DEBUG: Source values for '{target}': {source_values.to_dict()}")
+                     print(f"DEBUG: Source values types: {source_values.apply(type)}")
+
+                # 尝试转换为数值类型，保留原始值用于调试
                 numeric_sources_nan = source_values.apply(pd.to_numeric, errors='coerce')
-                # print(f"  After to_numeric(coerce): {numeric_sources_nan.to_dict()}") # Commented out
+                if is_bufa_target:
+                     print(f"  Values after pd.to_numeric(errors='coerce'):")
+                     print(f"    {numeric_sources_nan.to_dict()}")
+                     print(f"  NaN check: {numeric_sources_nan[numeric_sources_nan.isna()].to_dict()}")
+                else:
+                    print(f"DEBUG: After to_numeric(coerce): {numeric_sources_nan.to_dict()}")
+                    print(f"DEBUG: NaN values after conversion: {numeric_sources_nan[numeric_sources_nan.isna()].to_dict()}")
+
                 numeric_sources = numeric_sources_nan.fillna(0)
-                # print(f"  After fillna(0): {numeric_sources.to_dict()}") # Commented out
+                if is_bufa_target:
+                    print(f"  Values after fillna(0):")
+                    print(f"    {numeric_sources.to_dict()}")
+                else:
+                     print(f"DEBUG: After fillna(0): {numeric_sources.to_dict()}")
 
                 result = np.nan # Default result
                 if calculation == "sum":
                     result = numeric_sources.sum(skipna=False, min_count=0)
-                    # print(f"  Sum result: {result}") # Commented out
+                    if is_bufa_target:
+                         print(f"  Sum calculation result: {result}")
+                    else:
+                         print(f"DEBUG: Sum result for '{target}': {result}")
+
                 elif isinstance(calculation, str):
+                    # This part is less likely for '补发工资' if it's just a sum, but kept for completeness
                     local_vars = numeric_sources.to_dict()
+                    print(f"DEBUG: Evaluating expression '{calculation}' with variables: {local_vars}")
                     result = eval(calculation, {"__builtins__": {}}, local_vars)
-                    # print(f"  Eval result: {result}") # Commented out
+                    print(f"DEBUG: Eval result for '{target}': {result}")
                 else:
                     print(f"Warning: Unsupported calculation type '{calculation}' for target '{target}'")
+
+                # 验证计算结果
+                if pd.isna(result):
+                    print(f"DEBUG: Result is NaN for '{target}' in {row_info}")
+                elif not isinstance(result, (int, float)):
+                    print(f"DEBUG: Result type is {type(result)} for '{target}' in {row_info}")
+
+                if is_bufa_target:
+                    print(f"--- Exiting calculate_row for 补发工资 (Result: {result}) ---")
                 return result
+
             except Exception as e:
-                print(f"ERROR calculating '{target}' for {row_info} using sources {sources} and calc '{calculation}': {e}")
+                error_prefix = f"ERROR calculating '{target}' for {row_info}:"
+                if is_bufa_target:
+                     error_prefix = f"!!! CRITICAL ERROR calculating 补发工资 for {row_info}:"
+
+                print(error_prefix)
+                print(f"  Sources attempted: {sources}")
+                print(f"  Calculation: '{calculation}'")
+                print(f"  Error: {str(e)}")
+                print(f"  Source values (if available): {source_values.to_dict() if 'source_values' in locals() else 'N/A'}")
+                if is_bufa_target:
+                     print("--- Exiting calculate_row for 补发工资 (Exception) ---")
                 return np.nan
 
         # 应用计算

@@ -161,9 +161,10 @@ st.markdown(modern_minimalist_css, unsafe_allow_html=True)
 # st.markdown(styled_header_css, unsafe_allow_html=True)
 
 # --- 主界面 ---
-st.title("成都高新区财金局 工资条数据处理与合并工具")
+st.title("工资表合并AI助手")
 
 # --- 表单输入区域 ---
+st.sidebar.title("高新区财金局综合处")
 st.sidebar.header("🔧 参数设置")
 
 # 自定义单位名称
@@ -458,7 +459,11 @@ if st.button("🚀 开始处理数据", type="primary"):
                 tmp_deduct.write(file_deductions.getvalue())
                 tmp_deduct_path = tmp_deduct.name
             try:
-                deduction_df = pd.read_excel(tmp_deduct_path)
+                # 读取扣款表，从第三行读取表头
+                deduction_df = pd.read_excel(tmp_deduct_path, header=2)
+                # 记录读取到的列名和前几行数据
+                log(f"读取到的扣款表列名: {deduction_df.columns.tolist()}", "INFO")
+                log(f"扣款表明细 (前 5 行): \n{deduction_df.head().to_string()}", "INFO")
             finally:
                 os.unlink(tmp_deduct_path)
 
@@ -484,6 +489,37 @@ if st.button("🚀 开始处理数据", type="primary"):
             if not selected_deduction_fields:
                  log("警告：扣款表中除了姓名列外未找到其他字段。", "WARNING")
 
+            # 在调用process_sheet之前添加预处理步骤
+            print("\n=== 预处理扣款数据 ===")
+            print(f"扣款数据形状: {deduction_df.shape}")
+            print(f"扣款数据列: {deduction_df.columns.tolist()}")
+            print(f"扣款数据前5行:\n{deduction_df.head().to_string()}")
+
+            # 确保所有选中的扣款字段都是数值类型
+            for field in selected_deduction_fields:
+                if field in deduction_df.columns:
+                    deduction_df[field] = pd.to_numeric(deduction_df[field], errors='coerce').fillna(0)
+                    print(f"\n处理字段 {field}:")
+                    print(f"数据类型: {deduction_df[field].dtype}")
+                    print(f"非零值数量: {(deduction_df[field] != 0).sum()}")
+                    print(f"前5个值: {deduction_df[field].head().to_list()}")
+
+            # --- 添加日志：检查 '补发工资' 规则加载情况 ---
+            bufa_rule_found = False
+            for identity_rule in field_mappings:
+                for mapping in identity_rule.get("mappings", []):
+                    if mapping.get("target_field") == "补发工资":
+                        log(f"DEBUG: Found rule for '补发工资' under identity '{identity_rule.get(identity_column_name_select, 'N/A')}':", "DEBUG")
+                        log(f"  Source Fields: {mapping.get('source_fields')}", "DEBUG")
+                        log(f"  Calculation: {mapping.get('calculation')}", "DEBUG")
+                        bufa_rule_found = True
+                        # break # 可以取消注释，如果确定每个身份规则下只有一个目标字段
+                # if bufa_rule_found:
+                    # break # 可以取消注释，如果只需要找到第一个匹配的规则
+            if not bufa_rule_found:
+                log("WARNING: No mapping rule found with target_field='补发工资' in loaded configuration.", "WARNING")
+            # --- 结束添加 ---
+
             # 3. 处理每个源文件
             all_results = []
             has_error = False
@@ -497,6 +533,41 @@ if st.button("🚀 开始处理数据", type="primary"):
                             tmp_source.write(uploaded_file.getvalue())
                             tmp_source_path = tmp_source.name
 
+                        # --- BEGIN: Add logging for source data before processing ---
+                        try:
+                            # Attempt to read source file to log info (need to find header)
+                            preview_df_for_header = pd.read_excel(tmp_source_path, header=None, nrows=20) # Read first 20 rows to find header
+                            header_row_source = next((idx for idx, row in preview_df_for_header.iterrows() if any(("姓名" in str(cell)) or ("人员姓名" in str(cell)) for cell in row.astype(str))), None)
+
+                            if header_row_source is not None:
+                                df_source_preview = pd.read_excel(tmp_source_path, header=header_row_source)
+                                log(f"  -> 源文件 [{uploaded_file.name}] 读取成功 (表头行: {header_row_source + 1})，准备送入 process_sheet...", "INFO")
+                                log(f"     源文件列名: {df_source_preview.columns.tolist()}", "INFO")
+                                log(f"     源文件数据 (前 5 行):\\n{df_source_preview.head().to_string()}", "INFO")
+                            else:
+                                log(f"  -> 警告: 未能在源文件 [{uploaded_file.name}] 前 20 行找到'姓名'或'人员姓名'作为表头，无法记录源数据详情。", "WARNING")
+                                # Optionally, proceed without preview logging or stop? For now, just warn.
+                        except Exception as read_err:
+                             log(f"  -> 警告: 尝试读取源文件 [{uploaded_file.name}] 进行日志记录时出错: {read_err}", "WARNING")
+                        # --- END: Add logging for source data before processing ---
+
+                        # --- BEGIN: Add simulated merge for diagnostics ---
+                        if 'df_source_preview' in locals() and header_row_source is not None: # Ensure preview was read
+                            try:
+                                source_name_col = '人员姓名' # Assuming source also uses this based on previous logs
+                                if source_name_col in df_source_preview.columns and actual_name_col in deduction_df.columns:
+                                    log(f"  -> 执行模拟合并 (源: {uploaded_file.name}, 扣款表)...", "INFO")
+                                    simulated_merge = pd.merge(df_source_preview, deduction_df, on='人员姓名', how='left', suffixes=('', '_扣款')) # Use 'on' if keys are same, add suffix for potential conflicts
+                                    log(f"     模拟合并结果列名: {simulated_merge.columns.tolist()}", "INFO")
+                                    log(f"     模拟合并结果数据 (前 5 行):\\n{simulated_merge.head().to_string()}", "INFO")
+                                else:
+                                    log(f"  -> 警告: 无法执行模拟合并，源文件({source_name_col})或扣款表({actual_name_col})缺少预期的姓名列。", "WARNING")
+                            except Exception as merge_err:
+                                log(f"  -> 错误: 执行模拟合并时出错: {merge_err}", "ERROR")
+                        else:
+                             log(f"  -> 跳过模拟合并，因为未能成功读取源文件预览。", "INFO")
+                        # --- END: Add simulated merge for diagnostics ---
+
                         # 添加调用 process_sheet 的日志
                         log(f"  -> 调用核心处理函数 process_sheet...", "INFO")
                         result_df = process_sheet(
@@ -505,13 +576,19 @@ if st.button("🚀 开始处理数据", type="primary"):
                             current_field_mappings,
                             selected_deduction_fields,
                             identity_column_name_select,
-                            identity_column_name_select
+                            identity_column_name_select # NOTE: Passing identity key twice? Check process_sheet definition if intended.
                          )
                         log(f"  <- process_sheet 返回，结果行数: {len(result_df) if result_df is not None else 'None'}", "INFO")
+
+                        # --- BEGIN: Add logging for result data after processing ---
                         if result_df is not None and not result_df.empty:
+                             log(f"     process_sheet 返回 [{uploaded_file.name}] 列名: {result_df.columns.tolist()}", "INFO")
+                             log(f"     process_sheet 返回 [{uploaded_file.name}] 数据 (前 5 行):\\n{result_df.head().to_string()}", "INFO")
                              all_results.append(result_df)
                              log(f"[{i+1}/{len(source_files)}] 文件 {uploaded_file.name} 处理成功。", "SUCCESS")
+                        # --- END: Add logging for result data after processing ---
                         else:
+                             # Keep original warning log if result is None or empty
                              log(f"[{i+1}/{len(source_files)}] 文件 {uploaded_file.name} 未返回有效数据 (可能无匹配行或处理错误)。", "WARNING")
 
                     except ValueError as ve: # 捕获 process_sheet 返回的特定错误？还是内部处理？
@@ -558,6 +635,69 @@ if st.button("🚀 开始处理数据", type="primary"):
                         log("开始格式化输出文件...", "INFO")
                         format_excel_with_styles(tmp_processed_path, output_path, salary_date.year, salary_date.month)
                         log("文件格式化完成。", "SUCCESS")
+
+                        # 在合并操作后添加日志
+                        log(f"合并后的DataFrame列名: {combined_df.columns.tolist()}", "INFO")
+                        log(f"合并后的DataFrame数据 (前 5 行):\n{combined_df.head().to_string()}", "INFO")
+
+                        # 在扣款明细计算前添加日志
+                        log(f"用于计算的扣款明细字段: {selected_deduction_fields}", "INFO")
+                        log(f"扣款明细字段的值 (前 5 行):\n{combined_df[selected_deduction_fields].head().to_string()}", "INFO")
+
+                        # 在扣款明细计算后添加日志
+                        log(f"计算后的'扣发合计'和其他扣款明细字段的值 (前 5 行):\n{combined_df[['扣发合计'] + selected_deduction_fields].head().to_string()}", "INFO")
+
+                        # 添加补发合计计算的日志
+                        if "一次性补扣发" in combined_df.columns and "基础绩效奖补扣发" in combined_df.columns:
+                            log("开始计算补发合计...", "INFO")
+                            log(f"一次性补扣发数据类型: {combined_df['一次性补扣发'].dtype}", "INFO")
+                            log(f"基础绩效奖补扣发数据类型: {combined_df['基础绩效奖补扣发'].dtype}", "INFO")
+                            log(f"一次性补扣发前5行值:\n{combined_df['一次性补扣发'].head().to_string()}", "INFO")
+                            log(f"基础绩效奖补扣发前5行值:\n{combined_df['基础绩效奖补扣发'].head().to_string()}", "INFO")
+                            
+                            # 尝试计算补发合计
+                            try:
+                                combined_df['补发合计'] = combined_df['一次性补扣发'].fillna(0) + combined_df['基础绩效奖补扣发'].fillna(0)
+                                log(f"补发合计计算完成，前5行值:\n{combined_df['补发合计'].head().to_string()}", "INFO")
+                            except Exception as e:
+                                log(f"补发合计计算出错: {str(e)}", "ERROR")
+                        else:
+                            log("缺少补发相关字段，无法计算补发合计", "WARNING")
+
+                        # 在最终输出前添加日志
+                        log(f"最终输出的DataFrame列名: {combined_df.columns.tolist()}", "INFO")
+                        log(f"最终输出的DataFrame数据 (前 5 行):\n{combined_df.head().to_string()}", "INFO")
+
+                        # 验证结果
+                        print("\n=== 验证处理结果 ===")
+                        print(f"结果数据形状: {result_df.shape}")
+                        print(f"结果数据列: {result_df.columns.tolist()}")
+
+                        # 检查扣款字段
+                        for field in selected_deduction_fields:
+                            if field in result_df.columns:
+                                print(f"\n检查字段 {field}:")
+                                print(f"数据类型: {result_df[field].dtype}")
+                                print(f"非零值数量: {(result_df[field] != 0).sum()}")
+                                print(f"前5个值: {result_df[field].head().to_list()}")
+                            else:
+                                print(f"\n警告: 字段 {field} 不在结果数据中")
+
+                        # 检查姓名列的匹配情况
+                        name_col = "人员姓名" if "人员姓名" in result_df.columns else "姓名"
+                        if name_col in result_df.columns and name_col in deduction_df.columns:
+                            print("\n=== 检查姓名匹配情况 ===")
+                            source_names = set(result_df[name_col].dropna().unique())
+                            deduction_names = set(deduction_df[name_col].dropna().unique())
+                            matched_names = source_names.intersection(deduction_names)
+                            print(f"源文件中的姓名数量: {len(source_names)}")
+                            print(f"扣款表中的姓名数量: {len(deduction_names)}")
+                            print(f"成功匹配的姓名数量: {len(matched_names)}")
+                            if len(matched_names) < len(source_names):
+                                print("警告: 部分姓名未能匹配到扣款数据")
+                                print("未匹配的姓名示例:")
+                                unmatched = source_names - matched_names
+                                print(list(unmatched)[:5])
 
                         # 5. 提供下载
                         # st.success(f"🎉 处理完成！...") # 由 log 替代

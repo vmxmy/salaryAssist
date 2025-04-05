@@ -274,7 +274,7 @@
             "一次性补扣发",
             "基础绩效奖补扣发"
           ],
-          "target_field": "补发合计",
+          "target_field": "补发工资",
           "calculation": "sum"
         },
         {
@@ -349,7 +349,7 @@
             "基础绩效补扣发",
             "奖励绩效补扣发"
           ],
-          "target_field": "补发合计",
+          "target_field": "补发工资",
           "calculation": "sum"
         },
         {
@@ -430,7 +430,7 @@
             "基础绩效补扣发",
             "奖励绩效补扣发"
           ],
-          "target_field": "补发合计",
+          "target_field": "补发工资",
           "calculation": "sum"
         },
         {
