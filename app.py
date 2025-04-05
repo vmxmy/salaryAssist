@@ -28,48 +28,137 @@ def log(message, level="INFO"):
     now = datetime.now().strftime("%H:%M:%S")
     level_icon_map = {"INFO": "ℹ️", "WARNING": "⚠️", "ERROR": "❌", "SUCCESS": "✅"}
     icon = level_icon_map.get(level, "▪️")
-    # 使用 Markdown 加粗错误
-    formatted_message = f"`{now}` {icon} {message}"
-    if level == "ERROR":
-        formatted_message = f"**{formatted_message}**"
+    log_level_class = f"log-{level.lower()}"
+
+    # Wrap prefix and message in spans for styling
+    formatted_message = f"<span class='log-prefix'>{now} {icon}</span> <span class='{log_level_class}'>{message}</span>"
+
     st.session_state.log_messages.append(formatted_message)
     # 注意：日志在侧边栏的更新通常在整个按钮脚本执行完后发生
 # --- 结束日志函数 ---
 
 st.set_page_config(layout="wide", page_title="财政工资处理系统")
 
-# --- CSS for styled headers ---
-styled_header_css = """
+# --- NEW CSS for Modern Minimalist Style ---
+modern_minimalist_css = """
 <style>
-.custom-subheader {
-    border-left: 5px solid #1E90FF; /* Dodger blue left border */
-    background-color: #F0F8FF; /* Alice blue background */
-    padding: 10px 15px;      /* Padding around text */
-    margin-top: 20px;         /* Space above */
-    margin-bottom: 15px;      /* Space below */
-    border-radius: 5px;       /* Rounded corners */
-    font-size: 1.75em;        /* H3 font size */
-    line-height: 1.4;         /* Adjust line height */
-    font-weight: 600;         /* Make it bolder like headers */
-}
-/* Ensure the text inside aligns well, prevent potential default margins */
-.custom-subheader h3 {
-    margin: 0;
-    padding: 0;
-    line-height: inherit; /* Inherit line height */
-    font-size: inherit; /* Inherit font size */
-    font-weight: inherit; /* Inherit font weight */
-}
+/* Import Google Font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
 
-/* Target Streamlit's primary button to make it larger */
-button[kind="primary"] {
-    padding: 15px 30px; /* Further increase padding */
-    font-size: 2.4em;  /* Further increase font size */
-    font-weight: bold; /* Ensure font is bold */
-}
+/* Global Styles */
+html, body, [class*="st-"] {{
+    font-family: 'Inter', sans-serif;
+    background-color: #F8F9FA; /* Light grey background */
+    color: #212529; /* Dark text */
+}}
+
+/* Sidebar Styles */
+[data-testid="stSidebar"] {{
+    background-color: #FFFFFF; /* White sidebar */
+    border-right: 1px solid #E0E0E0; /* Subtle border */
+    box-shadow: 2px 0px 5px rgba(0, 0, 0, 0.05); /* Slight shadow */
+}}
+
+/* Titles and Headers */
+h1, h2, h3, h4, h5, h6 {{
+    font-family: 'Inter', sans-serif;
+    font-weight: 600; /* Bolder headers */
+}}
+
+/* Custom simple subheader style (replaces old .custom-subheader) */
+.simple-subheader {{
+    font-size: 1.5em; /* H3 size equivalent */
+    font-weight: 600;
+    margin-top: 25px;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #E0E0E0; /* Subtle underline */
+    padding-bottom: 8px;
+}}
+
+/* Input Controls */
+[data-testid="stTextInput"] input,
+[data-testid="stDateInput"] input,
+[data-testid="stSelectbox"] div[role="combobox"] {{
+    border: 1px solid #ced4da;
+    border-radius: 0.3rem;
+    background-color: #FFFFFF;
+}}
+
+/* File Uploader Adjustments */
+[data-testid="stFileUploader"] {{
+    /* Add some space */
+    margin-bottom: 10px;
+}}
+
+/* Primary Button Styling */
+button[kind="primary"] {{
+    background-color: #0d6efd; /* Primary blue */
+    color: white;
+    padding: 0.75rem 1.25rem; /* Moderate padding */
+    font-size: 1rem; /* Standard font size */
+    font-weight: 600;
+    border-radius: 0.3rem; /* Consistent rounding */
+    border: none; /* Remove default border */
+    transition: background-color 0.2s ease-in-out; /* Hover effect */
+}}
+
+button[kind="primary"]:hover {{
+    background-color: #0b5ed7; /* Darker blue on hover */
+}}
+
+/* Log Message Styling */
+.log-info {{ color: #0dcaf0; }} /* Cyan info */
+.log-warning {{ color: #ffc107; }} /* Yellow warning */
+.log-error {{ color: #dc3545; font-weight: bold; }} /* Red, bold error */
+.log-success {{ color: #198754; }} /* Green success */
+
+/* Styling for the log timestamp and icon */
+.log-prefix {{
+    color: #6c757d; /* Grey for timestamp/icon */
+    margin-right: 5px;
+}}
+
+/* Adjust log container in sidebar */
+[data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stVerticalBlock"] {{
+     /* Potentially adjust padding or spacing if needed */
+}}
+
 </style>
 """
-st.markdown(styled_header_css, unsafe_allow_html=True)
+st.markdown(modern_minimalist_css, unsafe_allow_html=True)
+
+# --- 旧 CSS (注释掉或删除) ---
+# styled_header_css = """
+# <style>
+# .custom-subheader {
+#     border-left: 5px solid #1E90FF; /* Dodger blue left border */
+#     background-color: #F0F8FF; /* Alice blue background */
+#     padding: 10px 15px;      /* Padding around text */
+#     margin-top: 20px;         /* Space above */
+#     margin-bottom: 15px;      /* Space below */
+#     border-radius: 5px;       /* Rounded corners */
+#     font-size: 1.75em;        /* H3 font size */
+#     line-height: 1.4;         /* Adjust line height */
+#     font-weight: 600;         /* Make it bolder like headers */
+# }
+# /* Ensure the text inside aligns well, prevent potential default margins */
+# .custom-subheader h3 {
+#     margin: 0;
+#     padding: 0;
+#     line-height: inherit; /* Inherit line height */
+#     font-size: inherit; /* Inherit font size */
+#     font-weight: inherit; /* Inherit font weight */
+# }
+#
+# /* Target Streamlit's primary button to make it larger */
+# button[kind="primary"] {
+#     padding: 15px 30px; /* Further increase padding */
+#     font-size: 2.4em;  /* Further increase font size */
+#     font-weight: bold; /* Ensure font is bold */
+# }
+# </style>
+# """
+# st.markdown(styled_header_css, unsafe_allow_html=True)
 
 # --- 主界面 ---
 st.title("成都高新区财金局 工资条数据处理与合并工具")
@@ -89,29 +178,28 @@ salary_date = st.sidebar.date_input("工资表日期（用于标题栏）", valu
 # --- 日志显示区域 ---
 with st.sidebar.expander("📄 处理日志", expanded=True):
     log_container = st.container(height=300) # 固定高度可滚动容器
-    # 从 session_state 读取日志并逐行显示
-    with log_container: # 使用容器上下文管理器
+    with log_container:
         for message in st.session_state.log_messages:
-            st.markdown(message, unsafe_allow_html=True) # 逐条渲染
+            st.markdown(message, unsafe_allow_html=True) # Markdown is now expected to contain spans like <span class='log-info'>...</span>
 # --- 结束日志显示 ---
 
 # 文件上传
-st.markdown("<h3 class='custom-subheader'> 📁 上传所需文件</h3>", unsafe_allow_html=True)
+st.markdown("<p class='simple-subheader'>📁 上传所需文件</p>", unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
 with col1:
     # 使用 markdown 作为标签，并隐藏 file_uploader 自带的标签
-    st.markdown("<h5 style='margin-bottom: -10px;'>📎 源数据工资表（支持多文件）</h5>", unsafe_allow_html=True)
+    st.caption("📎 源数据工资表（支持多文件）")
     source_files = st.file_uploader("source_uploader", type=["xlsx"], accept_multiple_files=True, label_visibility="collapsed", key="source_uploader")
 
-    st.markdown("<h5 style='margin-bottom: -10px;'>📎 导出表字段模板</h5>", unsafe_allow_html=True)
+    st.caption("📎 导出表字段模板")
     file_template = st.file_uploader("template_uploader", type=["xlsx"], label_visibility="collapsed", key="template_uploader")
 
 with col2:
-    st.markdown("<h5 style='margin-bottom: -10px;'>📎 扣款项表（含姓名+各项扣款）</h5>", unsafe_allow_html=True)
+    st.caption("📎 扣款项表（含姓名+各项扣款）")
     file_deductions = st.file_uploader("deductions_uploader", type=["xlsx"], label_visibility="collapsed", key="deductions_uploader")
 
-    st.markdown("<h5 style='margin-bottom: -10px;'>📎 字段映射规则 （JSON格式）</h5>", unsafe_allow_html=True)
+    st.caption("📎 字段映射规则 （JSON格式）")
     file_mapping = st.file_uploader("mapping_uploader", type=["json"], label_visibility="collapsed", key="mapping_uploader")
 
 # --- JSON 校验逻辑 ---
@@ -187,7 +275,7 @@ if source_files:
         st.warning(f"读取源数据示例字段时出错: {e}")
 
 # --- 规则匹配设置 --- #
-st.markdown("<h3 class='custom-subheader'> 🔀 字段匹配关系设置</h3>", unsafe_allow_html=True)
+st.markdown("<p class='simple-subheader'>🔀 字段匹配关系设置</p>", unsafe_allow_html=True)
 # 只保留一个选择框，因为源文件和规则使用相同字段名
 # 使用 sample_source_fields (确保它已定义并可能是 set)
 source_cols_list = sorted(list(sample_source_fields)) if sample_source_fields else []
@@ -510,4 +598,4 @@ if st.button("🚀 开始处理数据", type="primary"):
 
 # 可以添加页脚等信息
 st.markdown("---")
-st.caption("财政工资表处理工具 v1.0")
+st.caption("© 成都高新区财政金融局")
