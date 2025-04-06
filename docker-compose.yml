@@ -7,6 +7,6 @@ services:
       - "8501:8501"
     volumes:
       - .:/app
-    environment:
-      - NAME=World
-    command: streamlit run app.py 
+    # environment:  # Removed as potentially unused
+    #   - NAME=World
+    # command: streamlit run app.py # Removed, CMD is in Dockerfile 

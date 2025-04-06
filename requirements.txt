@@ -1,4 +1,6 @@
-streamlit
-pandas
-openpyxl
-matplotlib
+streamlit==<LATEST_VERSION>
+pandas==<LATEST_VERSION>
+openpyxl==<LATEST_VERSION>
+matplotlib==<LATEST_VERSION>
+numpy==<LATEST_VERSION>
+streamlit_markdown==<LATEST_VERSION>
