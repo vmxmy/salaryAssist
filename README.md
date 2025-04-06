@@ -1,8 +1,8 @@
-# 🏢 成都高新区财政局工资条数据处理与合并工具
+# 🏢 Excel 字段转换数据处理与合并工具
 
 ## 📋 项目介绍
 
-该项目是一个基于Streamlit开发的Web应用程序，专为成都高新区财政局设计，用于处理、合并和格式化工资数据。系统可以处理多个工资表文件，根据配置的字段映射规则转换字段名称，合并扣款表数据，并生成格式统一的Excel报表。
+该项目是一个基于Streamlit开发的Web应用程序，用于处理、合并和格式化工资数据。系统可以处理多个工资表文件，根据配置的字段映射规则转换字段名称，合并扣款表数据，并生成格式统一的Excel报表。
 
 ### 🎯 主要目标：
 - 📊 简化多源工资数据处理流程
@@ -64,7 +64,7 @@
 ### 🖥️ 方法一：直接运行（命令行）
 
 #### 📋 前提条件
-- 🐍 Python 3.7+
+- 🐍 Python 3.12+ (推荐, 基于 Dockerfile)
 - 📦 pip（Python包管理器）
 
 #### 📥 安装步骤
@@ -106,6 +106,7 @@
    ```bash
    docker-compose up -d
    ```
+   *(注意：容器将以非 root 用户运行以提高安全性)*
 4. 🌐 在浏览器中访问 http://localhost:8501
 
 #### 🐳 仅使用 Docker 部署
@@ -140,19 +141,24 @@
 
 ```
 📁 项目根目录
+├── 📄 .dockerignore             # Docker 忽略文件
+├── 📄 .gitignore                # Git 忽略文件 (若存在)
+├── 📄 Dockerfile                # Docker 构建文件
 ├── 📄 app.py                    # 主应用程序
+├── 📄 docker-compose.yml        # Docker Compose 配置
 ├── 📄 fiscal_report_full_script.py # 核心处理逻辑
-├── 📄 font_cache.py             # 字体缓存处理
-├── 📄 requirements.txt          # 依赖包列表
-├── 📄 Dockerfile                # Docker构建文件
-├── 📄 docker-compose.yml        # Docker Compose配置
-├── 📄 run.sh                    # Linux/Mac启动脚本
-├── 📄 run.bat                   # Windows启动脚本
-├── 📁 config/                   # 配置文件目录
-│   └── 📁 field_mapping/        # 字段映射规则
+├── 📄 font_cache.py             # 字体缓存处理 (若仍在使用)
+├── 📄 package-lock.json         # Node.js 依赖锁定文件 (若相关)
+├── 📄 requirements.txt          # Python 依赖包列表
+├── 📄 run.bat                   # Windows 启动脚本
+├── 📄 run.sh                    # Linux/Mac 启动脚本
+├── 📁 config/                   # 配置文件目录 (JSON 规则等)
 ├── 📁 input/                    # 输入数据示例
-├── 📁 output/                   # 输出文件目录
-└── 📄 README.md                 # 项目说明文档
+├── 📄 使用指南.md               # 详细使用说明
+├── 📄 开发指南.md               # 开发者相关信息
+├── 📄 开发时间评估.md           # 项目时间相关
+├── 📄 性能优化建议.md           # 性能相关建议
+└── 📄 README.md                 # 项目说明文档 (本文档)
 ```
 
 ### 📝 映射规则文件说明
@@ -192,8 +198,3 @@
 
 ## 📞 技术支持
 
-如有问题，请联系成都高新区财政金融局。
-
----
-
-© 🏢 成都高新区财政金融局
