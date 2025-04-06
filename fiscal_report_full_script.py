@@ -356,22 +356,12 @@ def process_sheet(file_path: str, deduction_df: pd.DataFrame, field_mappings: li
         # 定义行计算辅助函数
         def calculate_row(row, sources, calculation, target):
             row_info = f"row index {row.name}" if hasattr(row, 'name') else "unknown row"
-            is_bufa_target = (target == '补发工资') # Flag for specific logging
-
-            if is_bufa_target:
-                print(f"--- Entering calculate_row for 补发工资, {row_info} ---")
-                print(f"  Expected sources: {sources}")
-                print(f"  Actual columns in this row: {row.index.tolist()}")
-            else:
-                 print(f"DEBUG: calculate_row for '{target}', {row_info}")
+            print(f"DEBUG: calculate_row for '{target}', {row_info}")
 
             # Check for missing source columns *before* trying to access them
             missing_sources = [s for s in sources if s not in row.index]
             if missing_sources:
                 print(f"DEBUG: Missing sources for '{target}' in {row_info}: {missing_sources}")
-                if is_bufa_target:
-                    print(f"  [补发工资 specific] Missing sources detected: {missing_sources}")
-                    print("--- Exiting calculate_row for 补发工资 (Missing Sources) ---")
                 return np.nan
 
             try:
@@ -379,39 +369,21 @@ def process_sheet(file_path: str, deduction_df: pd.DataFrame, field_mappings: li
                 existing_sources = [s for s in sources if s in row.index] # Should be all sources now if no missing_sources
                 source_values = row[existing_sources]
 
-                if is_bufa_target:
-                    print(f"  Original values for existing sources ({existing_sources}):")
-                    print(f"    {source_values.to_dict()}")
-                    print(f"  Original types:")
-                    print(f"    {source_values.apply(type).to_dict()}")
-                else:
-                     print(f"DEBUG: Source values for '{target}': {source_values.to_dict()}")
-                     print(f"DEBUG: Source values types: {source_values.apply(type)}")
+                print(f"DEBUG: Source values for '{target}': {source_values.to_dict()}")
+                print(f"DEBUG: Source values types: {source_values.apply(type)}")
 
                 # 尝试转换为数值类型，保留原始值用于调试
                 numeric_sources_nan = source_values.apply(pd.to_numeric, errors='coerce')
-                if is_bufa_target:
-                     print(f"  Values after pd.to_numeric(errors='coerce'):")
-                     print(f"    {numeric_sources_nan.to_dict()}")
-                     print(f"  NaN check: {numeric_sources_nan[numeric_sources_nan.isna()].to_dict()}")
-                else:
-                    print(f"DEBUG: After to_numeric(coerce): {numeric_sources_nan.to_dict()}")
-                    print(f"DEBUG: NaN values after conversion: {numeric_sources_nan[numeric_sources_nan.isna()].to_dict()}")
+                print(f"DEBUG: After to_numeric(coerce): {numeric_sources_nan.to_dict()}")
+                print(f"DEBUG: NaN values after conversion: {numeric_sources_nan[numeric_sources_nan.isna()].to_dict()}")
 
                 numeric_sources = numeric_sources_nan.fillna(0)
-                if is_bufa_target:
-                    print(f"  Values after fillna(0):")
-                    print(f"    {numeric_sources.to_dict()}")
-                else:
-                     print(f"DEBUG: After fillna(0): {numeric_sources.to_dict()}")
+                print(f"DEBUG: After fillna(0): {numeric_sources.to_dict()}")
 
                 result = np.nan # Default result
                 if calculation == "sum":
                     result = numeric_sources.sum(skipna=False, min_count=0)
-                    if is_bufa_target:
-                         print(f"  Sum calculation result: {result}")
-                    else:
-                         print(f"DEBUG: Sum result for '{target}': {result}")
+                    print(f"DEBUG: Sum result for '{target}': {result}")
 
                 elif isinstance(calculation, str):
                     # This part is less likely for '补发工资' if it's just a sum, but kept for completeness
@@ -428,22 +400,14 @@ def process_sheet(file_path: str, deduction_df: pd.DataFrame, field_mappings: li
                 elif not isinstance(result, (int, float)):
                     print(f"DEBUG: Result type is {type(result)} for '{target}' in {row_info}")
 
-                if is_bufa_target:
-                    print(f"--- Exiting calculate_row for 补发工资 (Result: {result}) ---")
                 return result
 
             except Exception as e:
-                error_prefix = f"ERROR calculating '{target}' for {row_info}:"
-                if is_bufa_target:
-                     error_prefix = f"!!! CRITICAL ERROR calculating 补发工资 for {row_info}:"
-
-                print(error_prefix)
+                print(f"ERROR calculating '{target}' for {row_info}:")
                 print(f"  Sources attempted: {sources}")
                 print(f"  Calculation: '{calculation}'")
                 print(f"  Error: {str(e)}")
                 print(f"  Source values (if available): {source_values.to_dict() if 'source_values' in locals() else 'N/A'}")
-                if is_bufa_target:
-                     print("--- Exiting calculate_row for 补发工资 (Exception) ---")
                 return np.nan
 
         # 应用计算
@@ -548,6 +512,30 @@ def classify_fields(df):
         if field not in classified: field_styles[field] = "DEDUCT"; classified.add(field)
     return field_styles
 
+def get_column_width(cell):
+    """计算单元格内容的适当列宽"""
+    value = str(cell.value) if cell.value is not None else ""
+    max_width = 0
+    
+    # 计算字符宽度
+    for char in value:
+        if '\u4e00' <= char <= '\u9fff':  # 中文字符
+            max_width += 2.1
+        elif char.isdigit() or char.isspace():  # 数字和空格
+            max_width += 1.1
+        else:  # 其他字符
+            max_width += 1.3
+    
+    # 考虑字体样式的影响
+    if cell.font.bold:
+        max_width *= 1.2
+    
+    # 根据字体大小调整
+    if cell.font.size:
+        max_width *= cell.font.size / 11  # 11为默认字号
+        
+    return max_width
+
 def format_excel_with_styles(filepath, output_path, year, month):
     wb = load_workbook(filepath)
     ws = wb.active
@@ -582,12 +570,15 @@ def format_excel_with_styles(filepath, output_path, year, month):
         if style_key in style_map:
             cell.fill = style_map[style_key]
 
+    # 更新列宽度设置逻辑
     for col_idx, column_cells in enumerate(ws.columns, 1):
-        max_length = 0
+        max_width = 0
         for cell in column_cells:
-            val = str(cell.value) if cell.value else ""
-            max_length = max(max_length, len(val))
-        ws.column_dimensions[get_column_letter(col_idx)].width = max_length + 2
+            width = get_column_width(cell)
+            max_width = max(max_width, width)
+        # 设置最小宽度并添加一些padding
+        final_width = max(8, max_width + 2)
+        ws.column_dimensions[get_column_letter(col_idx)].width = min(final_width, 50)  # 限制最大宽度为50
 
     for col_idx, col_name in enumerate(headers, 1):
         values = [ws.cell(row=row, column=col_idx).value for row in range(4, ws.max_row+1)]
