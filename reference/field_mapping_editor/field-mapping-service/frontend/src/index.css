@@ -1,0 +1,30 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+@import 'reactflow/dist/style.css';
+
+/* Add any global styles or overrides here */
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+    /* Ensure root takes full height if needed, App.jsx already uses h-screen */
+    /* height: 100vh; */
+}
+
+/* Example: Style the ReactFlow minimap */
+.react-flow__minimap {
+    background-color: #f3f4f6; /* gray-100 */
+    border-radius: 4px;
+}
+
+/* Example: Style ReactFlow controls */
+.react-flow__controls {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}

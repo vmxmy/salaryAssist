@@ -1,0 +1,214 @@
+{
+  "field_mappings": [
+    {
+      "编制": "专技",
+      "岗位类别": "执业类专技人员",
+      "persons": [
+        "阴琪"
+      ],
+      "mappings": [
+        {
+          "source_field": "人员姓名",
+          "target_field": "人员姓名"
+        },
+        {
+          "source_field": "岗位类别",
+          "target_field": "岗位类别"
+        },
+        {
+          "source_field": "工资级别",
+          "target_field": "工资级别"
+        },
+        {
+          "source_field": "工资小计",
+          "target_field": "应发固定薪酬汇总"
+        },
+        {
+          "source_field": "补发合计",
+          "target_field": "补发合计"
+        },
+        {
+          "source_field": "工资小计",
+          "target_field": "工资小计"
+        },
+        {
+          "source_field": "基本工资",
+          "target_field": "基本工资"
+        },
+        {
+          "source_field": "岗位工资",
+          "target_field": "岗位工资"
+        },
+        {
+          "source_field": "津贴",
+          "target_field": "津贴"
+        },
+        {
+          "source_field": "季度绩效考核薪酬",
+          "target_field": "季度绩效考核薪酬"
+        },
+        {
+          "source_field": "固定薪酬   全年应发数",
+          "target_field": "固定薪酬   全年应发数"
+        },
+        {
+          "source_field": "全年截止当月已发固定薪酬（月薪酬+季度考核薪酬）",
+          "target_field": "全年截止当月已发固定薪酬（月薪酬+季度考核薪酬）"
+        },
+        {
+          "source_fields": [
+            "个人缴养老保险费8%",
+            "个人缴医疗保险费2%",
+            "个人缴失业费0.4%",
+            "个人缴住房公积金12%",
+            "补扣款",
+            "补扣公积金",
+            "个人所得税"
+          ],
+          "target_field": "单位代扣总计",
+          "calculation": "sum"
+        },
+        {"source_fields":[
+          "应发固定薪酬汇总",
+          "单位代扣总计"
+        ],
+        "target_field":"固定薪酬实发额",
+        "calculation":"应发固定薪酬汇总 - 单位代扣总计"
+        },        
+        {
+          "source_field": "个人缴养老保险费8%",
+          "target_field": "个人缴养老保险费8%"
+        },
+        {
+          "source_field": "个人缴医疗保险费2%",
+          "target_field": "个人缴医疗保险费2%"
+        },
+        {
+          "source_field": "个人缴失业费0.4%",
+          "target_field": "个人缴失业费0.4%"
+        },
+        {
+          "source_field": "个人缴住房公积金12%",
+          "target_field": "个人缴住房公积金12%"
+        },
+        {
+          "source_field": "补扣款",
+          "target_field": "补扣款"
+        },
+        {
+          "source_field": "补扣公积金",
+          "target_field": "补扣公积金"
+        },
+        {
+          "source_field": "个人所得税",
+          "target_field": "个人所得税"
+        }
+      ]
+    },
+    {
+      "编制": "专技",
+      "岗位类别": "管理类专技人员",
+      "persons": [
+        "杨圣"
+      ],
+      "mappings": [
+        {
+          "source_field": "人员姓名",
+          "target_field": "人员姓名"
+        },
+        {
+          "source_field": "岗位类别",
+          "target_field": "岗位类别"
+        },
+        {
+          "source_field": "工资级别",
+          "target_field": "工资级别"
+        },
+        {
+          "source_field": "工资小计",
+          "target_field": "应发固定薪酬汇总"
+        },
+        {
+          "source_field": "补发合计",
+          "target_field": "补发合计"
+        },
+        {
+          "source_field": "工资小计",
+          "target_field": "工资小计"
+        },
+        {
+          "source_field": "基本工资",
+          "target_field": "基本工资"
+        },
+        {
+          "source_field": "岗位工资",
+          "target_field": "岗位工资"
+        },
+        {
+          "source_field": "津贴",
+          "target_field": "津贴"
+        },
+        {
+          "source_field": "季度绩效考核薪酬",
+          "target_field": "季度绩效考核薪酬"
+        },
+        {
+          "source_field": "固定薪酬   全年应发数",
+          "target_field": "固定薪酬   全年应发数"
+        },
+        {
+          "source_field": "全年截止当月已发固定薪酬（月薪酬+季度考核薪酬）",
+          "target_field": "全年截止当月已发固定薪酬（月薪酬+季度考核薪酬）"
+        },
+        {
+          "source_fields": [
+            "个人缴养老保险费8%",
+            "个人缴医疗保险费2%",
+            "个人缴失业费0.4%",
+            "个人缴住房公积金12%",
+            "补扣款",
+            "补扣公积金",
+            "个人所得税"
+          ],
+          "target_field": "单位代扣总计",
+          "calculation": "sum"
+        },
+        {"source_fields":[
+          "应发固定薪酬汇总",
+          "单位代扣总计"
+        ],
+        "target_field":"固定薪酬实发额",
+        "calculation":"应发固定薪酬汇总 - 单位代扣总计"
+        },
+        {
+          "source_field": "个人缴养老保险费8%",
+          "target_field": "个人缴养老保险费8%"
+        },
+        {
+          "source_field": "个人缴医疗保险费2%",
+          "target_field": "个人缴医疗保险费2%"
+        },
+        {
+          "source_field": "个人缴失业费0.4%",
+          "target_field": "个人缴失业费0.4%"
+        },
+        {
+          "source_field": "个人缴住房公积金12%",
+          "target_field": "个人缴住房公积金12%"
+        },
+        {
+          "source_field": "补扣款",
+          "target_field": "补扣款"
+        },
+        {
+          "source_field": "补扣公积金",
+          "target_field": "补扣公积金"
+        },
+        {
+          "source_field": "个人所得税",
+          "target_field": "个人所得税"
+        }
+      ]
+    }
+  ]
+}

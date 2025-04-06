@@ -21,6 +21,9 @@ if 'mapping_data' not in st.session_state:
     st.session_state.mapping_data = None
 if 'mapping_valid' not in st.session_state:
     st.session_state.mapping_valid = None # None: 未上传, True: 有效, False: 无效
+# --- 新增 Session State for Single Select --- #
+if 'single_selected_identity_column' not in st.session_state:
+    st.session_state.single_selected_identity_column = None
 # --- 结束初始化 ---
 
 # --- 日志记录函数 ---
@@ -106,6 +109,27 @@ button[kind="primary"]:hover {{
     background-color: #0b5ed7; /* Darker blue on hover */
 }}
 
+/* --- 更新：为默认按钮添加现代轮廓样式 --- */
+button:not([kind="primary"]) {{
+    background-color: transparent;
+    color: #198754; /* Bootstrap success green */
+    border: 1px solid #198754;
+    padding: 0.75rem 1.25rem; /* Match primary button padding */
+    font-size: 1rem; /* Match primary font size */
+    font-weight: 600; /* Match primary font weight */
+    border-radius: 0.5rem; /* Softer corners */
+    transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}}
+
+button:not([kind="primary"]):hover {{
+    background-color: #198754; /* Fill with green on hover */
+    color: white;
+    border-color: #198754;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+}}
+/* --- 结束更新 --- */
+
 /* Log Message Styling */
 .log-info {{ color: #0dcaf0; }} /* Cyan info */
 .log-warning {{ color: #ffc107; }} /* Yellow warning */
@@ -176,13 +200,6 @@ def_month = datetime.today().month
 
 salary_date = st.sidebar.date_input("工资表日期（用于标题栏）", value=datetime(def_year, def_month, 1), format="YYYY-MM-DD")
 
-# --- 日志显示区域 ---
-with st.sidebar.expander("📄 处理日志", expanded=True):
-    log_container = st.container(height=300) # 固定高度可滚动容器
-    with log_container:
-        for message in st.session_state.log_messages:
-            st.markdown(message, unsafe_allow_html=True) # Markdown is now expected to contain spans like <span class='log-info'>...</span>
-# --- 结束日志显示 ---
 
 # 文件上传
 st.markdown("<p class='simple-subheader'>📁 上传所需文件</p>", unsafe_allow_html=True)
@@ -239,6 +256,44 @@ else:
     st.session_state.mapping_valid = None # 设为 None 表示未上传状态
 # --- 结束 JSON 校验 ---
 
+# --- 新增：独立状态条 --- #
+st.sidebar.subheader("📊 文件上传状态")
+
+required_files_status = {
+    "源数据工资表": bool(source_files),
+    "扣款项表": bool(file_deductions),
+    "字段映射规则": bool(file_mapping and st.session_state.get('mapping_valid') is True)
+}
+optional_files_status = {
+    "导出表字段模板": bool(file_template)
+}
+
+# --- 新增：独立状态条 --- #
+st.sidebar.markdown("**必需文件:**")
+for file_name, is_uploaded in required_files_status.items():
+    if is_uploaded:
+        st.sidebar.success(f"✅ {file_name}")
+    else:
+        st.sidebar.warning(f"🟡 {file_name} (未上传)")
+
+st.sidebar.markdown("**可选文件:**")
+for file_name, is_uploaded in optional_files_status.items():
+    if is_uploaded:
+        st.sidebar.success(f"✅ {file_name} (可选)")
+    else:
+        st.sidebar.info(f"⚪️ {file_name} (可选, 未上传)")
+# --- 结束新增 --- #
+
+st.sidebar.markdown("---")
+
+# --- 日志显示区域 ---
+with st.sidebar.expander("📄 处理日志", expanded=True):
+    log_container = st.container(height=300) # 固定高度可滚动容器
+    with log_container:
+        for message in st.session_state.log_messages:
+            st.markdown(message, unsafe_allow_html=True) # Markdown is now expected to contain spans like <span class='log-info'>...</span>
+# --- 结束日志显示 ---
+
 # 从 session_state 获取数据，如果无效或为 None 则用空字典
 mapping_data_from_state = st.session_state.get('mapping_data') or {}
 field_mappings = mapping_data_from_state.get('field_mappings', [])
@@ -264,36 +319,255 @@ if source_files:
         uploaded_source_file.seek(0)
         source_preview = pd.read_excel(uploaded_source_file, nrows=10, header=None)
         # 修复括号和逻辑：查找包含'姓名'或'人员姓名'的行
-        header_row = next((i for i, row in source_preview.iterrows() if any(("姓名" in str(cell)) or ("人员姓名" in str(cell)) for cell in row.astype(str))), None)
+        # --- 修改：使用默认关键字进行首次检测以填充选项 --- #
+        default_keywords_for_options = ["姓名", "人员姓名"]
+        header_row = next((i for i, row in source_preview.iterrows() if any((key_col in str(cell)) for cell in row.astype(str) for key_col in default_keywords_for_options)), None)
+        # --- 结束修改 --- #
         if header_row is not None:
             # 重置指针，读取正确的表头行
             uploaded_source_file.seek(0)
-            df_source_cols = pd.read_excel(uploaded_source_file, skiprows=header_row, nrows=0).columns.tolist() # nrows=0 也可以读表头
+            df_source_cols = pd.read_excel(uploaded_source_file, skiprows=header_row, nrows=0).columns.tolist()
             sample_source_fields = set(df_source_cols)
         else:
             st.warning("无法在第一个源文件中自动检测表头行以获取示例字段。")
     except Exception as e:
         st.warning(f"读取源数据示例字段时出错: {e}")
 
+# --- 新增：关键标识列选择 ---
+st.markdown("<p class='simple-subheader'>🔑 选择关键标识列</p>", unsafe_allow_html=True)
+pre_selected_keys = [col for col in ["姓名", "人员姓名"] if col in sample_source_fields]
+key_identifier_columns = st.multiselect(
+    "选择用于匹配和查找表头的关键列名（可多选）",
+    options=sample_source_fields,
+    default=pre_selected_keys,
+    help="这些列将用于自动检测源文件表头，并作为合并扣款表时的依据。请至少选择一项。"
+)
+# --- 结束新增 --- #
+
 # --- 规则匹配设置 --- #
 st.markdown("<p class='simple-subheader'>🔀 字段匹配关系设置</p>", unsafe_allow_html=True)
 # 只保留一个选择框，因为源文件和规则使用相同字段名
 # 使用 sample_source_fields (确保它已定义并可能是 set)
 source_cols_list = sorted(list(sample_source_fields)) if sample_source_fields else []
-identity_column_name_select = st.selectbox(
-    "选择用于匹配规则的字段名", # 修改标签
+
+# --- 替换为 Multiselect 并添加强制单选逻辑 --- #
+# 尝试预设默认值 (如果之前有选过)
+default_identity = None
+if st.session_state.single_selected_identity_column and st.session_state.single_selected_identity_column in source_cols_list:
+    default_identity = st.session_state.single_selected_identity_column
+elif not st.session_state.single_selected_identity_column:
+    # --- 修改：仅当 source_cols_list 非空时尝试设置默认值 --- #
+    if source_cols_list:
+        # 尝试智能默认：人员身份 > 岗位类别 > 第一个选项
+        if "人员身份" in source_cols_list:
+            default_identity = "人员身份"
+        elif "岗位类别" in source_cols_list:
+            default_identity = "岗位类别"
+        elif source_cols_list: # 这一层 elif 其实可以省略，因为外层 if 已保证非空
+            default_identity = source_cols_list[0]
+        # 将初始默认值存入 session_state
+        st.session_state.single_selected_identity_column = default_identity
+    # 如果 source_cols_list 为空，则 default_identity 保持 None, session state 也为 None
+    # --- 结束修改 --- #
+
+# --- 修改：确保 default 值在 options 中 --- #
+current_selection_in_state = []
+if st.session_state.single_selected_identity_column and st.session_state.single_selected_identity_column in source_cols_list:
+    current_selection_in_state = [st.session_state.single_selected_identity_column]
+# --- 结束修改 --- #
+
+selected_identity_list = st.multiselect(
+    "选择用于匹配规则的字段名 (单选)", # 修改标签以提示单选
     options=source_cols_list,
-    index=source_cols_list.index("人员身份") if "人员身份" in source_cols_list else (source_cols_list.index("岗位类别") if "岗位类别" in source_cols_list else 0), # 尝试默认 人员身份 或 岗位类别
-    help="选择源文件和JSON规则中都使用的那个字段名进行匹配（如 人员身份, 岗位类别）" # 修改帮助文本
+    default=current_selection_in_state,
+    key="identity_multiselect", # 添加 key
+    help="选择源文件和JSON规则中都使用的那个字段名进行匹配（如 人员身份, 岗位类别）。虽为多选框，但仅第一个选项生效。"
 )
+
+# 强制单选逻辑
+if len(selected_identity_list) == 0:
+    if st.session_state.single_selected_identity_column is not None:
+        st.session_state.single_selected_identity_column = None
+        st.rerun()
+elif len(selected_identity_list) == 1:
+    if st.session_state.single_selected_identity_column != selected_identity_list[0]:
+        st.session_state.single_selected_identity_column = selected_identity_list[0]
+        st.rerun()
+elif len(selected_identity_list) > 1:
+    # 如果用户选了多个，只保留最后一个（最新的选择）
+    last_selected = selected_identity_list[-1]
+    if st.session_state.single_selected_identity_column != last_selected:
+         st.session_state.single_selected_identity_column = last_selected
+         st.rerun()
+    # 否则，如果最后一个和 state 相同，但仍有多选，也需要强制刷新回单选
+    elif len(current_selection_in_state) != 1 or current_selection_in_state[0] != last_selected:
+         st.rerun()
+# --- 结束替换和逻辑 --- #
+
 # --- 结束规则匹配设置 --- #
+
+# --- 移动：数据有效性校验区域 --- #
+st.markdown("<p class='simple-subheader'>️✅ 数据有效性校验</p>", unsafe_allow_html=True)
+if st.button("🔍 检查数据有效性", key="validate_data_btn"):
+    validation_placeholder = st.container() # 创建容器显示结果
+    with validation_placeholder:
+
+        # --- 开始实现混合校验逻辑 --- #
+        validation_errors = []
+        validation_warnings = []
+
+        # B. 检查文件是否上传 (复用侧边栏逻辑稍微修改)
+        if not all(required_files_status.values()):
+            validation_errors.append(f"必需文件缺失或无效: {', '.join(name for name, uploaded in required_files_status.items() if not uploaded)}")
+        # 检查用户是否选择了关键列和身份列
+        if not key_identifier_columns:
+             validation_errors.append("请在上方'关键标识列'控件中选择至少一项。") # 修改提示
+        if not selected_identity_list:
+             validation_errors.append("请在上方'用于匹配规则的字段名'控件中选择一项。") # 修改提示
+
+        # 如果基础文件或选择缺失，则不继续检查
+        if validation_errors:
+             # H. 显示最终校验结果 (仅错误部分)
+             st.error("**校验失败:**\n" + "\n".join(validation_errors))
+             if 'validation_passed' in st.session_state: del st.session_state.validation_passed # 清除旧状态
+
+        else:
+            try:
+                # C. 读取所有表头信息
+                # 扣款表
+                actual_deduction_fields = set()
+                try:
+                    file_deductions.seek(0)
+                    deduction_df_headers = pd.read_excel(file_deductions, header=2, nrows=0) # 只读表头
+                    actual_deduction_fields = set(deduction_df_headers.columns)
+                except Exception as e:
+                    validation_errors.append(f"读取扣款表表头失败: {e}")
+
+                # 模板表 (如果上传)
+                actual_template_fields = []
+                template_available = False
+                if file_template:
+                    try:
+                        file_template.seek(0)
+                        template_df_header = pd.read_excel(file_template, skiprows=2, nrows=1)
+                        actual_template_fields = template_df_header.columns.tolist()
+                        template_available = True
+                    except Exception as e:
+                        validation_warnings.append(f"读取模板表表头失败: {e} (目标字段有效性将无法检查)")
+
+                # 所有源文件
+                all_actual_source_fields = set()
+                source_read_errors = []
+                default_keywords_for_header = ["姓名", "人员姓名"]
+                for i, src_file in enumerate(source_files):
+                    try:
+                        src_file.seek(0)
+                        preview_df = pd.read_excel(src_file, header=None, nrows=20)
+                        header_row_idx = next((idx for idx, row in preview_df.iterrows() if any((key in str(cell)) for cell in row.astype(str) for key in default_keywords_for_header)), None)
+                        if header_row_idx is not None:
+                             src_file.seek(0) # 需要重置指针以正确读取列
+                             df_cols = pd.read_excel(src_file, header=header_row_idx, nrows=0).columns.tolist()
+                             all_actual_source_fields.update(df_cols)
+                        else:
+                             source_read_errors.append(f"文件 '{src_file.name}' 未能自动检测到表头行 (使用默认关键字)。")
+                    except Exception as e:
+                         source_read_errors.append(f"读取源文件 '{src_file.name}' 的列名失败: {e}")
+                if source_read_errors:
+                     validation_warnings.extend(source_read_errors)
+                if not all_actual_source_fields:
+                     validation_errors.append("未能从任何源文件中成功读取列名。")
+
+                # D. 读取 JSON 规则 (已在前面加载到 st.session_state.mapping_data)
+                if 'mapping_data' not in st.session_state or not st.session_state.mapping_data:
+                     validation_errors.append("无法加载 JSON 映射规则。")
+                else:
+                     field_mappings = st.session_state.mapping_data.get('field_mappings', [])
+
+                     # 如果前面步骤有错误，则停止进一步检查
+                     if not validation_errors:
+                         # F. 执行字段重复检查
+                         common_fields = all_actual_source_fields.intersection(actual_deduction_fields)
+                         repeated_non_key_fields = common_fields - set(key_identifier_columns)
+                         if repeated_non_key_fields:
+                             validation_errors.append(f"字段冲突：以下字段同时存在于源文件和扣款表中（非关键列）: {sorted(list(repeated_non_key_fields))}。请修改列名确保唯一性。")
+
+                         # G. 执行 JSON 规则有效性检查
+                         available_fields = all_actual_source_fields.union(actual_deduction_fields)
+                         invalid_source_map = []
+                         invalid_target_map = []
+
+                         # --- 新增：预收集所有定义的目标字段 --- #
+                         all_defined_target_fields = set()
+                         for r in field_mappings:
+                             for m in r.get("mappings", []):
+                                 if m.get("target_field"):
+                                     all_defined_target_fields.add(m["target_field"])
+                         # --- 结束新增 --- #
+
+                         for rule_idx, rule in enumerate(field_mappings):
+                             # --- 使用 Session State --- #
+                             rule_id = rule.get(st.session_state.single_selected_identity_column, f"规则 #{rule_idx}")
+                             # --- 结束使用 --- #
+                             for map_idx, mapping in enumerate(rule.get("mappings", [])):
+                                 if "source_field" in mapping: # 简单映射
+                                     src = mapping["source_field"]
+                                     tgt = mapping.get("target_field")
+                                     if src not in available_fields:
+                                         invalid_source_map.append(f"规则 '{rule_id}': 源字段 '{src}' 在源文件或扣款表中未找到。")
+                                     if template_available and tgt and tgt not in actual_template_fields:
+                                         invalid_target_map.append(f"规则 '{rule_id}': 目标字段 '{tgt}' (来自源 '{src}') 在模板文件中未找到。")
+                                 elif "source_fields" in mapping: # 复杂映射
+                                     src_list = mapping["source_fields"]
+                                     tgt = mapping.get("target_field")
+                                     for src in src_list:
+                                         # --- 修改校验条件和警告消息 --- #
+                                         if src not in available_fields and src not in all_defined_target_fields:
+                                             invalid_source_map.append(f"规则 '{rule_id}' (计算): 源字段 '{src}' 在源文件/扣款表中未找到，且未被其他规则定义为目标字段。")
+                                         # --- 结束修改 --- #
+                                     if template_available and tgt and tgt not in actual_template_fields:
+                                         invalid_target_map.append(f"规则 '{rule_id}' (计算): 目标字段 '{tgt}' 在模板文件中未找到。")
+
+                         if invalid_source_map:
+                              # --- 修改警告消息标题和格式 (使用 f-string) --- #
+                              warning_list_md = "\n* ".join(invalid_source_map)
+                              validation_warnings.append(f"**JSON 规则警告：部分计算所需的源字段无法直接从文件或从其他规则生成 (请检查 JSON 或文件):**\n* {warning_list_md}")
+                              # --- 结束修改 --- #
+                         if invalid_target_map:
+                              # --- 修改错误消息标题和格式 (使用 f-string) --- #
+                              error_list_md = "\n* ".join(invalid_target_map)
+                              validation_errors.append(f"**JSON 规则错误：部分目标字段在模板文件中未找到:**\n* {error_list_md}")
+                              # --- 结束修改 --- #
+
+            except Exception as validation_ex:
+                 validation_errors.append(f"校验过程中发生意外错误: {validation_ex}")
+
+            # H. 显示最终校验结果 (完整版)
+            if validation_errors:
+                 st.error("**校验失败:**\n" + "\n".join(validation_errors))
+                 st.session_state.validation_passed = False # 可选：用于后续控制
+            if validation_warnings:
+                 st.warning("**校验警告:**\n" + "\n".join(validation_warnings))
+            # 只有没有错误时才算通过 (允许有警告)
+            if not validation_errors and validation_warnings:
+                 st.success("✅ 数据和规则有效性检查通过 (但存在警告)。")
+                 st.session_state.validation_passed = True
+            elif not validation_errors and not validation_warnings:
+                 st.success("✅ 数据和规则有效性检查通过！")
+                 st.session_state.validation_passed = True
+            elif validation_errors: # 确保失败时状态被设置
+                 if 'validation_passed' not in st.session_state or st.session_state.validation_passed is not False:
+                     st.session_state.validation_passed = False
+
+        # --- 结束实现混合校验逻辑 --- #
+
+    validation_placeholder = st.container()
+# --- 结束校验区域 --- #
 
 # 只有当映射文件有效时才显示编辑和可视化区域
 if st.session_state.get('mapping_valid') is True:
     with st.expander("📋 映射规则编辑与可视化（支持新增/校验/下载）", expanded=False):
         # 可视化字段映射统计
-        field_count = {"有效映射": 0, "源字段缺失": 0, "目标字段缺失": 0}
-        missing_source_details = [] # 用于存储缺失源字段的详细信息
+        field_count = {"有效映射": 0, "源字段缺失": 0, "目标字段缺失": 0} # Keep structure for now
         missing_target_details = [] # 用于存储缺失目标字段的详细信息
 
         # 确保 current_sample_source_fields 在这里可用
@@ -302,7 +576,9 @@ if st.session_state.get('mapping_valid') is True:
         for rule in field_mappings:
             # 获取当前规则的标识符，用于日志/错误信息
             # 使用用户在 selectbox 中选择的字段名
-            rule_identity_value = rule.get(identity_column_name_select, "未知规则标识")
+            # --- 使用 Session State --- #
+            rule_identity_value = rule.get(st.session_state.single_selected_identity_column, "未知规则标识")
+            # --- 结束使用 --- #
 
             for mapping in rule.get("mappings", []):
                 src = mapping.get("source_field", "")
@@ -311,57 +587,36 @@ if st.session_state.get('mapping_valid') is True:
                 # 只对简单映射进行源/目标字段校验
                 if "source_field" in mapping:
                     is_valid = False # 标记当前映射是否有效
-                    # 检查源字段是否存在
-                    if src not in current_sample_source_fields:
-                        field_count["源字段缺失"] += 1
-                        missing_source_details.append({
+                    # 如果源字段存在 (基于上面的移除，现在总是执行这个 else 逻辑，所以移除 else)
+                    # 检查目标字段是否在模板中 (仅当 template_fields 非空时)
+                    if template_fields and (tgt not in template_fields):
+                        field_count["目标字段缺失"] += 1
+                        missing_target_details.append({
                             "rule_id": rule_identity_value,
                             "source": src,
                             "target": tgt
                         })
-                    # 如果源字段存在，再检查目标字段 (如果模板存在)
                     else:
-                        # 检查目标字段是否在模板中 (仅当 template_fields 非空时)
-                        if template_fields and (tgt not in template_fields):
-                            field_count["目标字段缺失"] += 1
-                            missing_target_details.append({
-                                "rule_id": rule_identity_value,
-                                "source": src,
-                                "target": tgt
-                            })
-                        else:
-                             # 源字段存在，且(无模板 或 目标字段在模板中)
-                             field_count["有效映射"] += 1
-                             is_valid = True
+                         # 源字段存在，且(无模板 或 目标字段在模板中)
+                         field_count["有效映射"] += 1
+                         is_valid = True # is_valid 似乎没在别处用，但暂时保留
                     # (注意: 复杂映射 ("source_fields") 不在此处校验源/目标字段是否存在)
 
-        # 条形图展示映射校验结果
-        st.markdown("#### 映射校验统计图")
-        try:
-            fig, ax = plt.subplots()
-            bars = ax.bar(field_count.keys(), field_count.values(), color=["green", "orange", "red"])
-            ax.bar_label(bars) # 在条形图上显示数值
-            ax.set_title("字段映射状态统计")
-            st.pyplot(fig)
-        except Exception as plot_err:
-            st.error(f"绘制图表时出错: {plot_err}")
-
         # --- 显示缺失字段详情 --- #
-        st.markdown("--- impunity") # 分隔线
-        if missing_source_details:
-            st.error("**源字段缺失详情 (请检查源文件或映射规则):**")
-            for detail in missing_source_details:
-                st.markdown(f"- 规则 **'{detail['rule_id']}'**: 源字段 `'{detail['source']}'` (映射到 `'{detail['target']}'`) 在示例源文件中未找到。")
-
+        st.markdown("---") # 分隔线, 移除 impunity
         if missing_target_details:
             st.warning("**目标字段缺失详情 (与模板文件对比):**")
             for detail in missing_target_details:
                 st.markdown(f"- 规则 **'{detail['rule_id']}'**: 目标字段 `'{detail['target']}'` (来自 `'{detail['source']}'`) 在模板文件中未找到。")
-        # --- 结束详情显示 --- #
+        # --- 结束新增表单 ---
 
         # 映射编辑
         for i, rule in enumerate(field_mappings):
-            st.markdown(f"**人员身份：{rule.get('人员身份', '')} | 编制：{rule.get('编制', '')}**")
+            # --- 修改：使用 Session State --- #
+            identity_value = rule.get(st.session_state.single_selected_identity_column, '未知') # 获取身份值
+            bianzhi_value = rule.get('编制', '') # 保留编制
+            st.markdown(f"**{st.session_state.single_selected_identity_column}: {identity_value} | 编制: {bianzhi_value}**") # 动态显示
+            # --- 结束修改 --- #
             for j, mapping in enumerate(rule.get("mappings", [])):
                 if "source_field" in mapping:
                     col1, col2 = st.columns(2)
@@ -380,41 +635,12 @@ if st.session_state.get('mapping_valid') is True:
                 else:
                     st.warning(f"规则 {i}-{j} 格式无法识别: {mapping}")
 
-        # --- 新增映射规则表单 (移除内层 Expander) ---
-        st.markdown("--- impunity") # 添加分隔线
-        st.markdown("**➕ 添加新的人员身份映射**") # 使用 markdown 作为标题
-        # 反向缩进以下内容
-        new_identity = st.text_input("人员身份", key="new_identity_inp") # 避免 key 冲突
-        new_bianzhi = st.text_input("编制", key="new_bianzhi_inp")
-        new_source = st.text_input("源字段名", key="new_source_inp")
-        new_target = st.text_input("目标字段名", key="new_target_inp")
-        if st.button("添加映射规则", key="add_mapping_btn"):
-            # 查找人员身份键，需要考虑用户选择的 rule_identity_key_select
-            # 暂时硬编码检查 '人员身份'，但理想情况应使用选择的 key
-            match_key = "人员身份" # 或者 rule_identity_key_select (需要从外部传入或session state获取)
-            if not new_identity: # 假设新规则基于"人员身份"添加
-                 st.warning("请输入要添加规则的'人员身份'值", icon="⚠️")
-            elif not new_source or not new_target:
-                 st.warning("请输入源字段名和目标字段名", icon="⚠️")
-            else:
-                new_rule = next((r for r in field_mappings if r.get(match_key) == new_identity), None)
-                if not new_rule:
-                    new_rule = {match_key: new_identity, "编制": new_bianzhi, "mappings": []}
-                    # 注意：直接修改 field_mappings 可能在 rerun 后丢失，需要更新 session_state
-                    field_mappings.append(new_rule)
-                    # 更新 session state (重要!)
-                    if st.session_state.mapping_data:
-                         st.session_state.mapping_data['field_mappings'] = field_mappings
-                new_rule["mappings"].append({"source_field": new_source, "target_field": new_target})
-                st.success("✅ 新映射已添加 (请记得下载保存)")
-                st.experimental_rerun() # 添加映射后需要重新运行以更新显示
-        # --- 结束新增表单 ---
-
         # 下载保存
         edited_json_for_download = json.dumps({"field_mappings": field_mappings}, ensure_ascii=False, indent=2)
         st.download_button("📥 下载当前映射规则 JSON", edited_json_for_download, file_name="字段映射规则_编辑版.json", mime="application/json")
 
-        if st.button("💾 保存映射规则到服务器（模拟）"):
+        # 移除 impunity 并添加合适的按钮文本
+        if st.button("💾 保存映射规则备份到本地"):
             save_path = "./映射规则_保存备份.json"
             try:
                 with open(save_path, "w", encoding="utf-8") as f:
@@ -426,7 +652,13 @@ if st.session_state.get('mapping_valid') is True:
 # --- 处理触发区域 ---
 st.markdown("---") # 分隔线
 
-if st.button("🚀 开始处理数据", type="primary"):
+# --- 新增：根据校验状态决定按钮是否可用 --- #
+validation_status = st.session_state.get('validation_passed', None) # None: 未校验, False: 失败, True: 成功
+disable_processing_button = (validation_status is not True)
+button_tooltip = "请先点击上方的 '检查数据有效性' 按钮并通过校验。" if disable_processing_button else "开始合并处理所有上传的文件。"
+# --- 结束 --- #
+
+if st.button("🚀 开始处理数据", type="primary", disabled=disable_processing_button, help=button_tooltip):
     # 清空旧日志并记录开始
     st.session_state.log_messages = []
     log("开始处理流程...", "INFO")
@@ -442,8 +674,11 @@ if st.button("🚀 开始处理数据", type="primary"):
     if not st.session_state.get('mapping_valid', False):
         log("字段映射文件无效或未上传！", "ERROR")
         valid_inputs = False
-    if not identity_column_name_select:
+    if not selected_identity_list:
         log("请选择用于匹配规则的字段名！", "ERROR")
+        valid_inputs = False
+    if not key_identifier_columns:
+        log("请至少选择一个关键标识列名！", "ERROR")
         valid_inputs = False
 
     if valid_inputs:
@@ -469,7 +704,7 @@ if st.button("🚀 开始处理数据", type="primary"):
 
             # 校验扣款表姓名列
             key_col_found = False
-            name_columns = ["姓名", "人员姓名"]
+            name_columns = key_identifier_columns
             actual_name_col = None
             for key_col in name_columns:
                 if key_col in deduction_df.columns:
@@ -477,10 +712,10 @@ if st.button("🚀 开始处理数据", type="primary"):
                     actual_name_col = key_col # 记录找到的姓名列
                     break
             if not key_col_found:
-                log(f"扣款表必须包含 '姓名' 或 '人员姓名' 列！", "ERROR")
+                log(f"扣款表必须包含用户选择的关键标识列中的至少一个 ({name_columns})！", "ERROR")
                 st.stop()
             else:
-                log(f"扣款数据读取成功，找到键列: '{actual_name_col}'。", "INFO")
+                log(f"扣款数据读取成功，找到关键标识列: '{actual_name_col}'。", "INFO")
 
             # 自动确定扣款字段列表
             all_deduction_cols = deduction_df.columns.tolist()
@@ -506,10 +741,15 @@ if st.button("🚀 开始处理数据", type="primary"):
 
             # --- 添加日志：检查 '补发工资' 规则加载情况 ---
             bufa_rule_found = False
+            # --- 新增：在检查前先获取 current_field_mappings --- #
+            current_field_mappings = st.session_state.get('mapping_data', {}).get('field_mappings', [])
+            # --- 结束新增 --- #
             for identity_rule in field_mappings:
                 for mapping in identity_rule.get("mappings", []):
                     if mapping.get("target_field") == "补发工资":
-                        log(f"DEBUG: Found rule for '补发工资' under identity '{identity_rule.get(identity_column_name_select, 'N/A')}':", "DEBUG")
+                        # --- 使用 Session State --- #
+                        log(f"DEBUG: Found rule for '补发工资' under identity '{identity_rule.get(st.session_state.single_selected_identity_column, 'N/A')}':", "DEBUG")
+                        # --- 结束使用 --- #
                         log(f"  Source Fields: {mapping.get('source_fields')}", "DEBUG")
                         log(f"  Calculation: {mapping.get('calculation')}", "DEBUG")
                         bufa_rule_found = True
@@ -520,10 +760,55 @@ if st.button("🚀 开始处理数据", type="primary"):
                 log("WARNING: No mapping rule found with target_field='补发工资' in loaded configuration.", "WARNING")
             # --- 结束添加 ---
 
+            # --- 新增：预过滤映射规则 --- #
+            log("开始预过滤映射规则...", "INFO")
+            filtered_mappings_for_processing = []
+            actual_deduction_fields = set(deduction_df.columns)
+            # 使用之前获取的 sample_source_fields
+            # 注意：sample_source_fields 可能未在所有分支初始化，需要确保它存在
+            if 'sample_source_fields' not in locals():
+                 # 如果 sample_source_fields 因某种原因未定义 (例如没有上传源文件，虽然前面有校验)
+                 # 这里可以设置为空集合，或者记录一个错误然后停止？设置为集合可能更安全
+                 log("警告：未能获取源文件样本字段用于规则过滤，将不执行过滤。", "WARNING")
+                 filtered_mappings_for_processing = current_field_mappings # 不过滤
+            else:
+                filtered_rule_count = 0
+                original_mapping_count = 0
+                for rule in current_field_mappings:
+                    original_mapping_count += len(rule.get("mappings", []))
+                    filtered_rule = rule.copy()
+                    filtered_rule["mappings"] = []
+                    # --- 使用 Session State --- #
+                    rule_id_for_log = rule.get(st.session_state.single_selected_identity_column, '未知规则') # 用于日志
+                    # --- 结束使用 --- #
+
+                    for mapping in rule.get("mappings", []):
+                        if "source_field" in mapping:
+                            src = mapping["source_field"]
+                            # 条件：源字段在扣款表存在 且 在源文件样本中不存在
+                            if src in actual_deduction_fields and src not in sample_source_fields:
+                                log(f"  - 过滤掉规则 '{rule_id_for_log}' 中的无效映射: 源 '{src}' 仅存在于扣款表。", "DEBUG")
+                                filtered_rule_count += 1
+                                continue # 跳过这个映射
+                            else:
+                                filtered_rule["mappings"].append(mapping) # 保留有效映射
+                        elif "source_fields" in mapping:
+                            filtered_rule["mappings"].append(mapping) # 保留复杂映射
+                        else:
+                            # 如果映射格式未知，也保留？或者警告？暂时保留
+                            filtered_rule["mappings"].append(mapping)
+
+                    filtered_mappings_for_processing.append(filtered_rule)
+                log(f"映射规则预过滤完成。共过滤掉 {filtered_rule_count} 个无效的简单映射。", "INFO")
+            # --- 结束预过滤 --- #
+
             # 3. 处理每个源文件
             all_results = []
             has_error = False
-            log(f"开始逐个处理 {len(source_files)} 个源文件... (使用 '{identity_column_name_select}' 字段匹配)", "INFO")
+            # --- 使用 Session State --- #
+            identity_column_to_use = st.session_state.single_selected_identity_column
+            log(f"开始逐个处理 {len(source_files)} 个源文件... (使用 '{identity_column_to_use}' 字段匹配)", "INFO")
+            # --- 结束使用 --- #
             with st.spinner(f"正在处理 {len(source_files)} 个源文件..."):
                 for i, uploaded_file in enumerate(source_files):
                     log(f"[{i+1}/{len(source_files)}] 处理文件: {uploaded_file.name}", "INFO")
@@ -537,15 +822,17 @@ if st.button("🚀 开始处理数据", type="primary"):
                         try:
                             # Attempt to read source file to log info (need to find header)
                             preview_df_for_header = pd.read_excel(tmp_source_path, header=None, nrows=20) # Read first 20 rows to find header
-                            header_row_source = next((idx for idx, row in preview_df_for_header.iterrows() if any(("姓名" in str(cell)) or ("人员姓名" in str(cell)) for cell in row.astype(str))), None)
+                            # --- 修改：使用 key_identifier_columns --- #
+                            header_row_source = next((idx for idx, row in preview_df_for_header.iterrows() if any((key_col in str(cell)) for cell in row.astype(str) for key_col in key_identifier_columns)), None)
+                            # --- 结束修改 --- #
 
                             if header_row_source is not None:
                                 df_source_preview = pd.read_excel(tmp_source_path, header=header_row_source)
-                                log(f"  -> 源文件 [{uploaded_file.name}] 读取成功 (表头行: {header_row_source + 1})，准备送入 process_sheet...", "INFO")
+                                log(f"  -> 源文件 [{uploaded_file.name}] 读取成功 (使用 {key_identifier_columns} 检测到表头行: {header_row_source + 1})，准备送入 process_sheet...", "INFO") # 修改日志
                                 log(f"     源文件列名: {df_source_preview.columns.tolist()}", "INFO")
                                 log(f"     源文件数据 (前 5 行):\\n{df_source_preview.head().to_string()}", "INFO")
                             else:
-                                log(f"  -> 警告: 未能在源文件 [{uploaded_file.name}] 前 20 行找到'姓名'或'人员姓名'作为表头，无法记录源数据详情。", "WARNING")
+                                log(f"  -> 警告: 未能在源文件 [{uploaded_file.name}] 前 20 行找到 {key_identifier_columns} 中的任何一个作为表头，无法记录源数据详情。", "WARNING") # 修改日志
                                 # Optionally, proceed without preview logging or stop? For now, just warn.
                         except Exception as read_err:
                              log(f"  -> 警告: 尝试读取源文件 [{uploaded_file.name}] 进行日志记录时出错: {read_err}", "WARNING")
@@ -554,14 +841,21 @@ if st.button("🚀 开始处理数据", type="primary"):
                         # --- BEGIN: Add simulated merge for diagnostics ---
                         if 'df_source_preview' in locals() and header_row_source is not None: # Ensure preview was read
                             try:
-                                source_name_col = '人员姓名' # Assuming source also uses this based on previous logs
-                                if source_name_col in df_source_preview.columns and actual_name_col in deduction_df.columns:
-                                    log(f"  -> 执行模拟合并 (源: {uploaded_file.name}, 扣款表)...", "INFO")
-                                    simulated_merge = pd.merge(df_source_preview, deduction_df, on='人员姓名', how='left', suffixes=('', '_扣款')) # Use 'on' if keys are same, add suffix for potential conflicts
+                                # --- 修改：使用 key_identifier_columns 和 actual_name_col --- #
+                                source_key_to_use = None
+                                if actual_name_col in df_source_preview.columns: # 优先使用扣款表找到的那个
+                                    source_key_to_use = actual_name_col
+                                else: # 否则查找第一个在源表中的用户选择的关键列
+                                     source_key_to_use = next((col for col in key_identifier_columns if col in df_source_preview.columns), None)
+
+                                if source_key_to_use and actual_name_col: # 确保两边都有可用的键
+                                    log(f"  -> 执行模拟合并 (源: {uploaded_file.name}, 扣款表) on: 源='{source_key_to_use}', 扣款='{actual_name_col}'...", "INFO") # 修改日志
+                                    simulated_merge = pd.merge(df_source_preview, deduction_df, left_on=source_key_to_use, right_on=actual_name_col, how='left', suffixes=('', '_扣款')) # 使用 left_on/right_on
                                     log(f"     模拟合并结果列名: {simulated_merge.columns.tolist()}", "INFO")
                                     log(f"     模拟合并结果数据 (前 5 行):\\n{simulated_merge.head().to_string()}", "INFO")
                                 else:
-                                    log(f"  -> 警告: 无法执行模拟合并，源文件({source_name_col})或扣款表({actual_name_col})缺少预期的姓名列。", "WARNING")
+                                    log(f"  -> 警告: 无法执行模拟合并，源文件({key_identifier_columns})或扣款表({actual_name_col})缺少有效的公共或指定关键列。", "WARNING") # 修改日志
+                                # --- 结束修改 --- #
                             except Exception as merge_err:
                                 log(f"  -> 错误: 执行模拟合并时出错: {merge_err}", "ERROR")
                         else:
@@ -573,10 +867,12 @@ if st.button("🚀 开始处理数据", type="primary"):
                         result_df = process_sheet(
                             tmp_source_path,
                             deduction_df,
-                            current_field_mappings,
+                            filtered_mappings_for_processing,
                             selected_deduction_fields,
-                            identity_column_name_select,
-                            identity_column_name_select # NOTE: Passing identity key twice? Check process_sheet definition if intended.
+                            # --- 使用 Session State --- #
+                            identity_column_to_use,
+                            identity_column_to_use # NOTE: Passing identity key twice? Check process_sheet definition if intended.
+                            # --- 结束使用 --- #
                          )
                         log(f"  <- process_sheet 返回，结果行数: {len(result_df) if result_df is not None else 'None'}", "INFO")
 
@@ -645,24 +941,13 @@ if st.button("🚀 开始处理数据", type="primary"):
                         log(f"扣款明细字段的值 (前 5 行):\n{combined_df[selected_deduction_fields].head().to_string()}", "INFO")
 
                         # 在扣款明细计算后添加日志
-                        log(f"计算后的'扣发合计'和其他扣款明细字段的值 (前 5 行):\n{combined_df[['扣发合计'] + selected_deduction_fields].head().to_string()}", "INFO")
-
-                        # 添加补发合计计算的日志
-                        if "一次性补扣发" in combined_df.columns and "基础绩效奖补扣发" in combined_df.columns:
-                            log("开始计算补发合计...", "INFO")
-                            log(f"一次性补扣发数据类型: {combined_df['一次性补扣发'].dtype}", "INFO")
-                            log(f"基础绩效奖补扣发数据类型: {combined_df['基础绩效奖补扣发'].dtype}", "INFO")
-                            log(f"一次性补扣发前5行值:\n{combined_df['一次性补扣发'].head().to_string()}", "INFO")
-                            log(f"基础绩效奖补扣发前5行值:\n{combined_df['基础绩效奖补扣发'].head().to_string()}", "INFO")
-                            
-                            # 尝试计算补发合计
-                            try:
-                                combined_df['补发合计'] = combined_df['一次性补扣发'].fillna(0) + combined_df['基础绩效奖补扣发'].fillna(0)
-                                log(f"补发合计计算完成，前5行值:\n{combined_df['补发合计'].head().to_string()}", "INFO")
-                            except Exception as e:
-                                log(f"补发合计计算出错: {str(e)}", "ERROR")
+                        # --- 修改：移除硬编码访问 --- #
+                        total_deduction_col_name = '扣发合计'
+                        if total_deduction_col_name in combined_df.columns:
+                            log(f"计算后的'{total_deduction_col_name}'和其他扣款明细字段的值 (前 5 行):\n{combined_df[[total_deduction_col_name] + selected_deduction_fields].head().to_string()}", "INFO")
                         else:
-                            log("缺少补发相关字段，无法计算补发合计", "WARNING")
+                            log(f"计算后的扣款明细字段的值 (未找到'{total_deduction_col_name}'列) (前 5 行):\n{combined_df[selected_deduction_fields].head().to_string()}", "INFO")
+                        # --- 结束修改 --- #
 
                         # 在最终输出前添加日志
                         log(f"最终输出的DataFrame列名: {combined_df.columns.tolist()}", "INFO")
@@ -684,20 +969,29 @@ if st.button("🚀 开始处理数据", type="primary"):
                                 print(f"\n警告: 字段 {field} 不在结果数据中")
 
                         # 检查姓名列的匹配情况
-                        name_col = "人员姓名" if "人员姓名" in result_df.columns else "姓名"
-                        if name_col in result_df.columns and name_col in deduction_df.columns:
-                            print("\n=== 检查姓名匹配情况 ===")
-                            source_names = set(result_df[name_col].dropna().unique())
-                            deduction_names = set(deduction_df[name_col].dropna().unique())
+                        # --- 修改：使用 key_identifier_columns --- #
+                        common_key_for_validation = None
+                        for key_col in key_identifier_columns:
+                            if key_col in result_df.columns and key_col in deduction_df.columns:
+                                common_key_for_validation = key_col
+                                break
+
+                        if common_key_for_validation:
+                            print(f"\n=== 使用关键列 '{common_key_for_validation}' 检查姓名匹配情况 ===")
+                            source_names = set(result_df[common_key_for_validation].dropna().unique())
+                            deduction_names = set(deduction_df[common_key_for_validation].dropna().unique())
                             matched_names = source_names.intersection(deduction_names)
-                            print(f"源文件中的姓名数量: {len(source_names)}")
-                            print(f"扣款表中的姓名数量: {len(deduction_names)}")
-                            print(f"成功匹配的姓名数量: {len(matched_names)}")
+                            print(f"源文件中的 '{common_key_for_validation}' 数量: {len(source_names)}")
+                            print(f"扣款表中的 '{common_key_for_validation}' 数量: {len(deduction_names)}")
+                            print(f"成功匹配的 '{common_key_for_validation}' 数量: {len(matched_names)}")
                             if len(matched_names) < len(source_names):
-                                print("警告: 部分姓名未能匹配到扣款数据")
-                                print("未匹配的姓名示例:")
+                                print(f"警告: 部分源文件中的 '{common_key_for_validation}' 未能匹配到扣款数据")
+                                print("未匹配示例:")
                                 unmatched = source_names - matched_names
                                 print(list(unmatched)[:5])
+                        else:
+                            print(f"\n警告: 未能在结果表和扣款表中找到共同的关键标识列 ({key_identifier_columns}) 用于匹配验证。")
+                        # --- 结束修改 --- #
 
                         # 5. 提供下载
                         # st.success(f"🎉 处理完成！...") # 由 log 替代
